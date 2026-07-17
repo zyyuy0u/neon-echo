@@ -1,0 +1,28 @@
+## REPORT
+
+- 結論: PASS — M1 移動垂直切片、單元/E2E 規格與所有允許執行的驗收閘均已完成。
+- 產出: /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/main.ts:1-146
+- 產出: /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/style.css:1-81
+- 產出: /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/core/tuning.ts:1-78
+- 產出: /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/systems/camera/ThirdPersonCamera.ts:1-104
+- 產出: /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/systems/character/CharacterController.ts:1-144
+- 產出: /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/systems/character/locomotion.ts:1-100
+- 產出: /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/systems/input/InputSystem.ts:1-90
+- 產出: /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/ui/DevTuningPanel.ts:1-76
+- 產出: /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/world/graybox.ts:1-132
+- 產出: /Users/zhengyuyou/Desktop/專案、系統/Site-Project/tests/locomotion.test.ts:1-171
+- 產出: /Users/zhengyuyou/Desktop/專案、系統/Site-Project/e2e/movement.spec.ts:1-58
+- 產出: /Users/zhengyuyou/Desktop/專案、系統/Site-Project/docs/tasks/M1-report.md:1-28
+- 驗證證據: `npm run lint` → exit 0；`eslint src tests e2e --max-warnings 0`。
+- 驗證證據: `npm run typecheck` → exit 0；`tsc --noEmit`。
+- 驗證證據: `npm test` → exit 0；`Test Files 2 passed (2)`；`Tests 5 passed (5)`。
+- 驗證證據: `npm run build` → exit 0；`18 modules transformed`；`built in 144ms`。
+- 驗證證據: tuning/魔法數掃描 → §2.3 值均命中 `src/core/tuning.ts`；`src/systems` 無 `8.0|2.2`。
+- 驗證證據: production 掃描 → `rg '__NEON_DEBUG__' dist` 無命中。
+- 驗證證據: M0/E2E 靜態檢查 → scaffold canvas-ready 斷言仍在；movement 覆蓋 W、Space、高度與 console errors。
+- 驗證證據: dev smoke → Vite `ready in 83 ms`；首頁與轉譯後 `src/main.ts` 均 HTTP 200。
+- 驗證證據: `git diff --check` → exit 0；package/lockfile 無 diff；未 commit / push。
+- 未解決事項與風險:
+  - 依 REDLINE 未執行 `npm run e2e`；須由主控在可啟動 Chromium 的環境執行。
+  - Rapier compat 0.19.3 內部仍以舊 wasm-bindgen 簽名初始化；目前只在 init 期間過濾該精確上游 warning，其他 warning 不受影響。
+  - 移動手感仍需 user 實機試玩裁決；build 的既有大型 chunk warning 留待 M6 backlog。
