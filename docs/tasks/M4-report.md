@@ -1,0 +1,18 @@
+## REPORT
+- 結論: PASS — M4 玩法核心、三座聖所、12 條碑文、雙結局、dev debug hooks 與指定 E2E 規格均已完成，所有允許執行的驗收指令皆為 exit 0。
+- 產出:
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/systems/abilities/AbilityState.ts:1-37；/Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/systems/character/locomotion.ts:1-214
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/systems/collectibles/CollectibleState.ts:1-66；/Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/systems/puzzles/PuzzleState.ts:1-113；/Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/systems/ending/EndingState.ts:1-55
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/content/steles.ts:1-68；/Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/world/GameplayWorld.ts:1-191；/Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/ui/GameplayOverlay.ts:1-134
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/main.ts:1-264；/Users/zhengyuyou/Desktop/專案、系統/Site-Project/e2e/gameplay.spec.ts:1-92
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/tests/abilities.test.ts:1-138；/Users/zhengyuyou/Desktop/專案、系統/Site-Project/tests/puzzles.test.ts:1-51；/Users/zhengyuyou/Desktop/專案、系統/Site-Project/tests/ending.test.ts:1-37；/Users/zhengyuyou/Desktop/專案、系統/Site-Project/tests/content.test.ts:1-16
+- 驗證證據:
+  - `npm run lint` → `eslint src tests e2e --max-warnings 0`；exit 0。
+  - `npm run typecheck` → `tsc --noEmit`；exit 0。
+  - `npm test` → `Test Files 8 passed (8)`、`Tests 29 passed (29)`；exit 0。
+  - `npm run build` → `✓ 34 modules transformed.`、`✓ built in 155ms`；exit 0（gzip JS 1,005.85 kB，低於 1.5 MB 預算）。
+  - `git diff --quiet -- tests/reachability.test.ts` → 無輸出；exit 0。另行合併檢查 `graph.ts`、package manifests、既有 `locomotion.test.ts` 亦 exit 0。
+  - `npm test -- --reporter=verbose tests/locomotion.test.ts` → M3 基線檔實有的 4 個 locomotion named tests 全部 `✓`；全套仍為 `29 passed`。（派工單寫 5 個，但基線檔只有 4 個，未修改該檔。）
+- 未解決事項與風險:
+  - 依 REDLINES 未執行 `npm run e2e`；`e2e/gameplay.spec.ts` 已完成且通過 lint/typecheck，但瀏覽器實跑留待允許 E2E 的後續驗收。
+  - Vite build 保留既有單一大型 chunk 警告；gzip JS 仍在計畫的 1.5 MB 預算內。

@@ -145,3 +145,116 @@ body {
   background: #16213e;
   font: inherit;
 }
+
+#gameplay-ui {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
+
+.shard-counter {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  padding: 0.55rem 0.8rem;
+  border-left: 2px solid #00e5ff;
+  background: rgb(8 5 24 / 72%);
+  color: #fff;
+  font-size: 0.8rem;
+  letter-spacing: 0.12em;
+  text-shadow: 0 0 8px #00e5ff;
+}
+
+.gameplay-message {
+  position: absolute;
+  top: 16%;
+  left: 50%;
+  padding: 0.8rem 1.2rem;
+  border: 1px solid #ffd319;
+  opacity: 0;
+  transform: translate(-50%, -0.5rem);
+  background: rgb(8 5 24 / 88%);
+  color: #ffd319;
+  letter-spacing: 0.16em;
+  transition: 180ms ease;
+}
+
+.gameplay-message.is-visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.stele-overlay {
+  position: absolute;
+  right: max(1rem, 8vw);
+  bottom: 7vh;
+  left: max(1rem, 8vw);
+  padding: 1.1rem 1.4rem;
+  border: 1px solid #ff2ec4;
+  background: rgb(8 5 24 / 88%);
+  box-shadow: 0 0 24px rgb(255 46 196 / 28%);
+  color: #fff;
+}
+
+.stele-overlay h2 {
+  margin: 0 0 0.65rem;
+  color: #ff2ec4;
+  font-size: 0.9rem;
+  letter-spacing: 0.16em;
+}
+
+.stele-overlay p {
+  margin: 0.45rem 0;
+  line-height: 1.55;
+}
+
+.stele-overlay small {
+  color: #00e5ff;
+}
+
+.ending-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  gap: 0.8rem;
+  padding: 2rem;
+  pointer-events: auto;
+  background: radial-gradient(circle, rgb(22 33 62 / 96%), rgb(8 5 24 / 99%));
+  color: #fff;
+  text-align: center;
+}
+
+.ending-overlay[hidden],
+.stele-overlay[hidden] {
+  display: none;
+}
+
+.ending-overlay h1 {
+  margin: 0 0 1rem;
+  color: #ff2ec4;
+  text-shadow: 0 0 18px #ff2ec4;
+}
+
+.ending-overlay p {
+  max-width: 44rem;
+  margin: 0 auto;
+  line-height: 1.6;
+}
+
+.ending-overlay button {
+  min-width: 14rem;
+  margin: 0.35rem auto;
+  padding: 0.8rem 1.2rem;
+  border: 1px solid #00e5ff;
+  color: #fff;
+  background: rgb(0 229 255 / 10%);
+  font: inherit;
+  cursor: pointer;
+}
+
+.ending-overlay button:focus-visible,
+.ending-overlay button:hover {
+  outline: 2px solid #ffd319;
+  box-shadow: 0 0 18px rgb(0 229 255 / 48%);
+}

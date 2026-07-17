@@ -58,6 +58,10 @@ export class WorldBuilder {
   private readonly shardPositions = WORLD_ZONES.flatMap((zone) =>
     zone.shards.map((shard) => shard.position),
   );
+  private readonly shardIds = WORLD_ZONES.flatMap((zone) =>
+    zone.shards.map((shard) => shard.id),
+  );
+  private readonly collectedShardIds = new Set<string>();
   private shardMesh: InstancedMesh | undefined;
   private elapsedSeconds = 0;
 
@@ -78,9 +82,17 @@ export class WorldBuilder {
       zones: WORLD_ZONES.length,
       landmarks: WORLD_ZONES.filter((zone) => zone.landmark).length,
       shards: this.shardPositions.length,
-      steles: WORLD_ZONES.reduce((total, zone) => total + zone.steles.length, 0),
+      steles: WORLD_ZONES.reduce(
+        (total, zone) => total + zone.steles.length,
+        0,
+      ),
       sanctuaries: WORLD_ZONES.filter((zone) => zone.sanctuary).length,
     };
+  }
+
+  public setShardCollected(id: string): void {
+    if (!this.shardIds.includes(id)) return;
+    this.collectedShardIds.add(id);
   }
 
   public update(deltaSeconds: number): void {
@@ -96,7 +108,9 @@ export class WorldBuilder {
         this.elapsedSeconds * 0.7 + index * 0.31,
         0.18,
       );
-      dummy.scale.setScalar(0.72);
+      dummy.scale.setScalar(
+        this.collectedShardIds.has(this.shardIds[index] ?? '') ? 0 : 0.72,
+      );
       dummy.updateMatrix();
       shardMesh.setMatrixAt(index, dummy.matrix);
     });
@@ -287,8 +301,7 @@ export class WorldBuilder {
       for (let level = 1; level <= 6; level += 1) {
         const heightFraction = level / 7;
         const shaftRadius =
-          width * 0.42 * (1 - heightFraction) +
-          width * 0.12 * heightFraction;
+          width * 0.42 * (1 - heightFraction) + width * 0.12 * heightFraction;
         const ring = new Mesh(
           new TorusGeometry(shaftRadius + 0.45, 0.45, 6, 28),
           cyanDetail,
@@ -330,13 +343,7 @@ export class WorldBuilder {
         magentaDetail,
       );
       beacon.position.y = width * 0.56;
-      group.add(
-        outerRing,
-        innerRing,
-        magentaOutline,
-        cyanOutline,
-        beacon,
-      );
+      group.add(outerRing, innerRing, magentaOutline, cyanOutline, beacon);
     } else {
       const core = new Mesh(
         new CylinderGeometry(width * 0.08, width * 0.46, height, 9),
@@ -353,8 +360,7 @@ export class WorldBuilder {
       for (let level = 1; level <= 3; level += 1) {
         const heightFraction = level / 4;
         const coreRadius =
-          width * 0.46 * (1 - heightFraction) +
-          width * 0.08 * heightFraction;
+          width * 0.46 * (1 - heightFraction) + width * 0.08 * heightFraction;
         const stripe = new Mesh(
           new TorusGeometry(coreRadius + 0.4, 0.38, 5, 24),
           cyanDetail,
@@ -397,8 +403,14 @@ export class WorldBuilder {
 
   private buildShards(): void {
     const geometry = new OctahedronGeometry(1, 0);
-    const material = this.trackMaterial(createNeonMaterial(PALETTE.neonCyan, 4.2));
-    const mesh = new InstancedMesh(geometry, material, this.shardPositions.length);
+    const material = this.trackMaterial(
+      createNeonMaterial(PALETTE.neonCyan, 4.2),
+    );
+    const mesh = new InstancedMesh(
+      geometry,
+      material,
+      this.shardPositions.length,
+    );
     mesh.name = 'echo-shards';
     mesh.instanceMatrix.setUsage(DynamicDrawUsage);
     mesh.frustumCulled = false;
@@ -420,7 +432,11 @@ export class WorldBuilder {
         roughness: 0.25,
       }),
     );
-    const mesh = new InstancedMesh(new BoxGeometry(1, 1, 1), material, steles.length);
+    const mesh = new InstancedMesh(
+      new BoxGeometry(1, 1, 1),
+      material,
+      steles.length,
+    );
     mesh.name = 'memory-steles';
     const dummy = new Object3D();
     steles.forEach((stele, index) => {

@@ -14,6 +14,9 @@ export interface Tuning {
   doubleJumpHeight: number;
   glideFallSpeed: number;
   glideForwardSpeed: number;
+  updraftRiseSpeed: number;
+  shardPickupRadius: number;
+  interactionRadius: number;
   cameraDistance: number;
   cameraSensitivity: number;
   cameraFieldOfView: number;
@@ -60,6 +63,9 @@ export const tuning: Tuning = {
   doubleJumpHeight: 1.8,
   glideFallSpeed: 2.5,
   glideForwardSpeed: 10,
+  updraftRiseSpeed: 7,
+  shardPickupRadius: 2.25,
+  interactionRadius: 4.5,
   cameraDistance: 5.5,
   cameraSensitivity: 0.0025,
   cameraFieldOfView: 55,

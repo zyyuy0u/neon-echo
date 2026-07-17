@@ -4,6 +4,7 @@ import { CapsuleGeometry, Group, Mesh, type Scene, Vector3 } from 'three';
 import { tuning } from '../../core/tuning';
 import { createNeonMaterial } from '../../render/materials';
 import { PALETTE } from '../../render/palette';
+import type { AbilityState } from '../abilities/AbilityState';
 import {
   createLocomotionState,
   stepLocomotion,
@@ -15,6 +16,8 @@ export interface CharacterInput {
   jumpPressed: boolean;
   jumpHeld: boolean;
   jumpReleased: boolean;
+  dashPressed?: boolean;
+  inUpdraft?: boolean;
 }
 
 export class CharacterController {
@@ -28,6 +31,7 @@ export class CharacterController {
   public constructor(
     private readonly world: RAPIER.World,
     scene: Scene,
+    private readonly abilities?: AbilityState,
     spawn = { x: 0, y: 1.2, z: 0 },
   ) {
     this.body = world.createRigidBody(
@@ -77,7 +81,11 @@ export class CharacterController {
   public update(deltaSeconds: number, input: CharacterInput): void {
     const result = stepLocomotion(
       this.locomotion,
-      { ...input, grounded: this.grounded },
+      {
+        ...input,
+        grounded: this.grounded,
+        abilities: new Set(this.abilities?.getAll() ?? []),
+      },
       deltaSeconds,
     );
     this.locomotion = result.state;
