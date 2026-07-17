@@ -10,7 +10,7 @@ export class ThirdPersonCamera {
     tuning.cameraFieldOfView,
     1,
     tuning.cameraNearPlane,
-    tuning.cameraFarPlane,
+    tuning.worldCameraFarPlane,
   );
   private yaw = 0;
   private pitch = tuning.cameraInitialPitch;

@@ -116,6 +116,15 @@ export class CharacterController {
     return this.grounded;
   }
 
+  public teleport(x: number, y: number, z: number): void {
+    const position = { x, y, z };
+    this.body.setTranslation(position, true);
+    this.body.setNextKinematicTranslation(position);
+    this.locomotion = createLocomotionState();
+    this.grounded = false;
+    this.syncVisual();
+  }
+
   public dispose(scene: Scene): void {
     scene.remove(this.visual);
     this.visual.traverse((object) => {

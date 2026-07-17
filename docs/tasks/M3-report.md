@@ -1,0 +1,25 @@
+## REPORT
+- 結論: PASS — M3 世界資料、四大地標、配置物、Rapier 建造、可達性圖與 debug/e2e 驗收鉤子已完成，所有允許執行的驗收指令均 exit 0。
+- 產出: /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/world/map/types.ts:1-81
+- 產出: /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/world/map/plaza.ts:1-71
+- 產出: /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/world/map/skylift.ts:1-103
+- 產出: /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/world/map/spire.ts:1-100
+- 產出: /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/world/map/ring.ts:1-128
+- 產出: /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/world/map/chasm.ts:1-135
+- 產出: /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/world/map/graph.ts:1-144
+- 產出: /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/world/WorldBuilder.ts:1-410
+- 產出: /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/core/tuning.ts:1-90
+- 產出: /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/main.ts:1-163
+- 產出: /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/systems/camera/ThirdPersonCamera.ts:1-104
+- 產出: /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/systems/character/CharacterController.ts:1-141
+- 產出: /Users/zhengyuyou/Desktop/專案、系統/Site-Project/tests/reachability.test.ts:1-80
+- 產出: /Users/zhengyuyou/Desktop/專案、系統/Site-Project/e2e/world.spec.ts:1-83
+- 產出: /Users/zhengyuyou/Desktop/專案、系統/Site-Project/docs/tasks/M3-report.md:1-25
+- 驗證證據: `npm run lint` → `eslint src tests e2e --max-warnings 0`，exit 0。
+- 驗證證據: `npm run typecheck` → `tsc --noEmit`，exit 0。
+- 驗證證據: `npm test` → `Test Files 3 passed (3)`、`Tests 10 passed (10)`，exit 0。
+- 驗證證據: `npm run build` → `✓ built in 153ms`；JS gzip `998.10 kB` < 1.5 MB，exit 0。
+- 驗證證據: `rg -n 'fog:\s*false' src/world` → WorldBuilder.ts:204,214；地標材質關閉霧化。
+- 驗證證據: `git diff --quiet -- src/systems/character/locomotion.ts tests/locomotion.test.ts` → 無輸出，exit 0。
+- 驗證證據: `rg 'Math\.random' src/world/map` 與 `rg 'graybox' src/main.ts` → 均零命中；`git diff --check` exit 0。
+- 未解決事項與風險: 依 REDLINES 未執行 `npm run e2e`；`e2e/world.spec.ts` 已建立並納入 lint/typecheck，WebGL 效能數據、東區 teleport 與截圖需由外部驗收執行。

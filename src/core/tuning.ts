@@ -38,6 +38,9 @@ export interface Tuning {
   minimumStepWidth: number;
   maximumSlopeAngle: number;
   minimumSlideAngle: number;
+  worldCameraFarPlane: number;
+  worldFogNear: number;
+  worldFogFar: number;
 }
 
 // Mutable by design: the development tuning panel edits these values live.
@@ -81,4 +84,7 @@ export const tuning: Tuning = {
   minimumStepWidth: 0.25,
   maximumSlopeAngle: Math.PI * 0.28,
   minimumSlideAngle: Math.PI * 0.32,
+  worldCameraFarPlane: 950,
+  worldFogNear: 90,
+  worldFogFar: 360,
 };

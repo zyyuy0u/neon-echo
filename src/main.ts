@@ -10,7 +10,7 @@ import { ThirdPersonCamera } from './systems/camera/ThirdPersonCamera';
 import { CharacterController } from './systems/character/CharacterController';
 import { InputSystem } from './systems/input/InputSystem';
 import { DevTuningPanel } from './ui/DevTuningPanel';
-import { createGraybox } from './world/graybox';
+import { WorldBuilder } from './world/WorldBuilder';
 import './style.css';
 
 async function initializeRapier(): Promise<void> {
@@ -47,7 +47,11 @@ async function startGame(): Promise<() => void> {
 
   const scene = new Scene();
   scene.background = new Color(PALETTE.nightSky);
-  scene.fog = new Fog(PALETTE.nightSky, 22, 70);
+  scene.fog = new Fog(
+    PALETTE.nightSky,
+    tuning.worldFogNear,
+    tuning.worldFogFar,
+  );
   scene.add(new AmbientLight(PALETTE.neonCyan, 2.1));
   const sky = createSynthwaveSky(scene);
 
@@ -55,7 +59,7 @@ async function startGame(): Promise<() => void> {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
   const physicsWorld = new RAPIER.World({ x: 0, y: -tuning.gravity, z: 0 });
-  const disposeGraybox = createGraybox(scene, physicsWorld);
+  const worldBuilder = new WorldBuilder(scene, physicsWorld);
   const character = new CharacterController(physicsWorld, scene);
   const input = new InputSystem(canvas);
   const thirdPersonCamera = new ThirdPersonCamera(physicsWorld, character);
@@ -97,6 +101,7 @@ async function startGame(): Promise<() => void> {
       physicsWorld.step();
       character.syncVisual();
       thirdPersonCamera.update(fixedDeltaSeconds);
+      worldBuilder.update(fixedDeltaSeconds);
       sky.update(fixedDeltaSeconds, camera.position);
     },
     render: () => {
@@ -117,6 +122,11 @@ async function startGame(): Promise<() => void> {
           drawCalls: renderer.info.render.calls,
           triangles: renderer.info.render.triangles,
         }),
+        getWorldStats: () => worldBuilder.getStats(),
+        teleport: (x: number, y: number, z: number) => {
+          character.teleport(x, y, z);
+          thirdPersonCamera.update(1 / 60);
+        },
         getSceneInfo: () => ({
           backgroundHex:
             scene.background instanceof Color
@@ -138,7 +148,7 @@ async function startGame(): Promise<() => void> {
     input.dispose();
     devPanel?.dispose();
     character.dispose(scene);
-    disposeGraybox();
+    worldBuilder.dispose();
     sky.dispose();
     window.removeEventListener('resize', resize);
     if (import.meta.env.DEV) Reflect.deleteProperty(window, '__NEON_DEBUG__');

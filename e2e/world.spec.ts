@@ -1,0 +1,83 @@
+import { expect, test } from '@playwright/test';
+
+interface NeonWorldDebugWindow extends Window {
+  __NEON_DEBUG__: {
+    getWorldStats: () => {
+      zones: number;
+      landmarks: number;
+      shards: number;
+      steles: number;
+      sanctuaries: number;
+    };
+    getRenderStats: () => { drawCalls: number; triangles: number };
+    teleport: (x: number, y: number, z: number) => void;
+  };
+}
+
+test('builds and renders the complete world within budget', async ({
+  page,
+}, testInfo) => {
+  const browserErrors: string[] = [];
+  page.on('console', (message) => {
+    if (message.type() === 'error') browserErrors.push(message.text());
+  });
+  page.on('pageerror', (error) => browserErrors.push(error.message));
+
+  await page.goto('/');
+  const canvas = page.locator('#game-canvas');
+  await expect(canvas).toHaveAttribute('data-status', 'ready', {
+    timeout: 15_000,
+  });
+  await expect(canvas).toBeVisible();
+
+  const worldStats = await page.evaluate(() =>
+    (
+      window as unknown as NeonWorldDebugWindow
+    ).__NEON_DEBUG__.getWorldStats(),
+  );
+  expect(worldStats).toEqual({
+    zones: 5,
+    landmarks: 4,
+    shards: 40,
+    steles: 12,
+    sanctuaries: 3,
+  });
+
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (
+            window as unknown as NeonWorldDebugWindow
+          ).__NEON_DEBUG__.getRenderStats().drawCalls,
+      ),
+    )
+    .toBeGreaterThan(0);
+  const plazaStats = await page.evaluate(() =>
+    (
+      window as unknown as NeonWorldDebugWindow
+    ).__NEON_DEBUG__.getRenderStats(),
+  );
+  expect(plazaStats.drawCalls).toBeLessThan(300);
+  expect(plazaStats.triangles).toBeLessThan(500_000);
+
+  await page.evaluate(() =>
+    (
+      window as unknown as NeonWorldDebugWindow
+    ).__NEON_DEBUG__.teleport(300, 72, 50),
+  );
+  await page.waitForTimeout(500);
+  const spireStats = await page.evaluate(() =>
+    (
+      window as unknown as NeonWorldDebugWindow
+    ).__NEON_DEBUG__.getRenderStats(),
+  );
+  expect(spireStats.drawCalls).toBeLessThan(300);
+  expect(spireStats.triangles).toBeLessThan(500_000);
+
+  await page.screenshot({
+    path: testInfo.outputPath('neon-echo-world-spire.png'),
+    fullPage: true,
+  });
+  expect(browserErrors).toEqual([]);
+});

@@ -1,0 +1,13 @@
+## VERIFY
+- 總結論: FAIL
+- 逐條: [M3-world#1] PASS — `npm run lint`、`npm run typecheck`、`npm test`（3 files/10 tests）、`npm run build` 均 exit 0。
+- 逐條: [M3-world#2] FAIL — 真實 import 見 `tests/reachability.test.ts:3-8`，graph 又由五區資料組合（`src/world/map/graph.ts:1-14`）；(a) 14-18、(b) 16/20、(c) 17/21、(e) 39-45、(f) 48-66 存在，但 (d) 28-36 只排除「缺 glide」，未排除缺 dash 或缺 doubleJump，不能證明三者皆必要。
+- 逐條: [M3-world#3] PASS — `tests/reachability.test.ts:69-78` 明確斷言 zones=5、landmarks=4、shards=40、steles=12、sanctuaries=3。
+- 逐條: [M3-world#4] PASS — `e2e/world.spec.ts:26-44` ready/數量，46-76 預算與 teleport 後重查，78-82 截圖/零 console error；近期有效 PNG（1280×720）存在於 `test-results/world-builds-and-renders-the-complete-world-within-budget-chromium/neon-echo-world-spire.png`，mtime 2026-07-18 00:28:23 +0800。
+- 逐條: [M3-world#5] PASS — `rg 'fog:\s*false' src/world` 命中 `src/world/WorldBuilder.ts:210,220`；`src/main.ts:13` 僅 import WorldBuilder，全文無 graybox。
+- 逐條: [M3-world#6] PASS — 合併命令 `git diff --quiet -- src/systems/character/locomotion.ts tests/locomotion.test.ts` exit 0；兩檔各自執行亦皆 exit 0。
+- 逐條: [M3-world#7] PASS — `rg -n 'Math\.random' src/world/map` exit 1 且零命中。
+- 逐條: [M3b-artfix#2] PASS — platform/landmark-body 分別用 structure material（`src/world/WorldBuilder.ts:119-144,199-234`）；neon factory 搜尋除 import 外只命中小型 shard（398-405），`fog:false` 材質只供 cable/stripe/ring-outline/beacon 等細節（249-371）。
+- 逐條: [M3b-artfix#3] PASS — 可行走平台暗色結構本體見 `src/world/WorldBuilder.ts:122-144`，頂面以 grid material 覆蓋見 146-175，未以 neon 發光材質鋪 ground/platform。
+- 逐條: [M3b-artfix#4] PASS — e2e 取景點為 `(300,72,50)`（`e2e/world.spec.ts:64-69`）；spire 中心 `(300,0,0)`、scale `(42,185,42)`（`src/world/map/spire.ts:59-65`），z 相差 50，明確位於塔身幾何外。
+- 附註: 依指示未執行 e2e；M3-world#4 僅做規格內容 read-back 與既有近期 PNG 驗證。build 雖成功但有單一 bundle 約 2.86 MB 的警告；總結論因 M3-world#2 缺少完整負向斷言而為 FAIL。

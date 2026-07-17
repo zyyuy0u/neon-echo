@@ -1,0 +1,100 @@
+import type { Zone } from './types';
+
+export const SPIRE: Zone = {
+  id: 'spire',
+  name: 'East · Neon Spire',
+  entryRequires: ['dash'],
+  bounds: { min: [70, -6, -110], max: [410, 200, 110] },
+  platforms: [
+    {
+      id: 'spire-bridge',
+      kind: 'platform',
+      position: [100, -1, 0],
+      size: [60, 2, 30],
+      accent: 'cyan',
+    },
+    {
+      id: 'spire-ground',
+      kind: 'platform',
+      position: [255, -1, 0],
+      size: [250, 2, 220],
+      accent: 'magenta',
+    },
+    {
+      id: 'spire-climb-1',
+      kind: 'platform',
+      position: [275, 12, 34],
+      size: [48, 2, 18],
+      accent: 'cyan',
+    },
+    {
+      id: 'spire-climb-2',
+      kind: 'platform',
+      position: [326, 25, 8],
+      size: [42, 2, 18],
+      accent: 'magenta',
+    },
+    {
+      id: 'spire-climb-3',
+      kind: 'platform',
+      position: [292, 40, -30],
+      size: [42, 2, 18],
+      accent: 'cyan',
+    },
+    {
+      id: 'spire-climb-4',
+      kind: 'platform',
+      position: [258, 58, 12],
+      size: [38, 2, 18],
+      accent: 'yellow',
+    },
+    {
+      id: 'spire-sanctuary-deck',
+      kind: 'platform',
+      position: [350, 1, -58],
+      size: [56, 4, 48],
+      accent: 'yellow',
+    },
+  ],
+  landmark: {
+    id: 'landmark-spire',
+    name: 'The Neon Spire',
+    kind: 'spire',
+    position: [300, 0, 0],
+    scale: [42, 185, 42],
+    topRequires: ['dash', 'doubleJump'],
+  },
+  shards: [
+    { id: 'shard-spire-01', position: [102, 1.5, 0], requires: ['dash'] },
+    { id: 'shard-spire-02', position: [166, 1.5, 38], requires: ['dash'] },
+    { id: 'shard-spire-03', position: [226, 1.5, -42], requires: ['dash'] },
+    { id: 'shard-spire-04', position: [275, 14, 34], requires: ['dash'] },
+    { id: 'shard-spire-05', position: [326, 27, 8], requires: ['dash'] },
+    {
+      id: 'shard-spire-06',
+      position: [292, 42, -30],
+      requires: ['dash', 'doubleJump'],
+    },
+    {
+      id: 'shard-spire-07',
+      position: [258, 60, 12],
+      requires: ['dash', 'doubleJump'],
+    },
+    { id: 'shard-spire-08', position: [370, 1.5, 58], requires: ['dash'] },
+  ],
+  steles: [
+    { id: 'stele-spire-01', position: [185, 2.5, -60], requires: ['dash'] },
+    { id: 'stele-spire-02', position: [338, 2.5, 72], requires: ['dash'] },
+    {
+      id: 'stele-spire-03',
+      position: [258, 61, 8],
+      requires: ['dash', 'doubleJump'],
+    },
+  ],
+  sanctuary: {
+    id: 'sanctuary-double-jump',
+    position: [350, 4, -66],
+    requires: ['dash'],
+    grants: 'doubleJump',
+  },
+};

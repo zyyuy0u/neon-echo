@@ -1,0 +1,13 @@
+## REPORT
+- 結論: PASS — 大面平台與四座地標已改為暗色結構基底，地面恢復 M2 青色細網格，東塔改為暗塔身、青色層線與頂部洋紅信標；所有允許執行的驗收指令均 exit 0。
+- 產出: /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/world/WorldBuilder.ts:119-374
+- 產出: /Users/zhengyuyou/Desktop/專案、系統/Site-Project/e2e/world.spec.ts:64-68
+- 產出: /Users/zhengyuyou/Desktop/專案、系統/Site-Project/docs/tasks/M3b-report.md:1-12
+- 驗證證據: `npm run lint` → `eslint src tests e2e --max-warnings 0`，exit 0。
+- 驗證證據: `npm run typecheck` → `tsc --noEmit`，exit 0。
+- 驗證證據: `npm test` → `Test Files 3 passed (3)`、`Tests 10 passed (10)`，exit 0。
+- 驗證證據: `npm run build` → `✓ 27 modules transformed`、`✓ built in 176ms`，exit 0。
+- 驗證證據: `rg -n 'createNeon(Glow|Emissive)?Material|neonMaterial' src/world/WorldBuilder.ts` → 僅命中 import 與第 400 行小型碎片材質；平台/地標主體零命中。
+- 驗證證據: `rg -n 'structureSurfaceMaterial|gridSurfaceMaterial|landmarkBodyMaterial|fog: false' src/world/WorldBuilder.ts` → 平台第 122/149 行為結構/網格材質；地標主體第 202 行為結構材質；`fog: false` 僅第 210/220 行細部材質。
+- 驗證證據: `rg -n 'teleport\(' e2e/world.spec.ts` → 第 67 行 `(300, 72, 50)`，位於東塔中心外 50 單位且高於地面。
+- 未解決事項與風險: 依 REDLINES 未執行 `npm run e2e`；4 條 e2e、WebGL 預算與截圖美術複審須由主控外部執行。
