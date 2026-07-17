@@ -25,6 +25,9 @@ export interface Tuning {
   cameraHeight: number;
   cameraCollisionPadding: number;
   cameraPositionSmoothing: number;
+  bloomStrength: number;
+  bloomRadius: number;
+  bloomThreshold: number;
   invertCameraX: boolean;
   invertCameraY: boolean;
   characterRadius: number;
@@ -65,6 +68,9 @@ export const tuning: Tuning = {
   cameraHeight: 0.85,
   cameraCollisionPadding: 0.18,
   cameraPositionSmoothing: 14,
+  bloomStrength: 1.65,
+  bloomRadius: 0.78,
+  bloomThreshold: 0.55,
   invertCameraX: false,
   invertCameraY: false,
   characterRadius: 0.42,

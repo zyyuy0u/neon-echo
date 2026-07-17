@@ -1,14 +1,8 @@
 import RAPIER from '@dimforge/rapier3d-compat';
-import {
-  CapsuleGeometry,
-  Group,
-  Mesh,
-  MeshStandardMaterial,
-  type Scene,
-  Vector3,
-} from 'three';
+import { CapsuleGeometry, Group, Mesh, type Scene, Vector3 } from 'three';
 
 import { tuning } from '../../core/tuning';
+import { createNeonMaterial } from '../../render/materials';
 import { PALETTE } from '../../render/palette';
 import {
   createLocomotionState,
@@ -65,13 +59,7 @@ export class CharacterController {
     this.controller.setMaxSlopeClimbAngle(tuning.maximumSlopeAngle);
     this.controller.setMinSlopeSlideAngle(tuning.minimumSlideAngle);
 
-    const material = new MeshStandardMaterial({
-      color: PALETTE.neonCyan,
-      emissive: PALETTE.neonCyan,
-      emissiveIntensity: 2.4,
-      roughness: 0.25,
-      wireframe: true,
-    });
+    const material = createNeonMaterial(PALETTE.neonMagenta, 3.2);
     const mesh = new Mesh(
       new CapsuleGeometry(
         tuning.characterRadius,

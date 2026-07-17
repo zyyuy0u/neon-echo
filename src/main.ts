@@ -1,15 +1,11 @@
 import RAPIER from '@dimforge/rapier3d-compat';
 import { AmbientLight, Color, Fog, Scene, WebGLRenderer } from 'three';
-import {
-  BloomEffect,
-  EffectComposer,
-  EffectPass,
-  RenderPass,
-} from 'postprocessing';
 
 import { GameLoop } from './core/GameLoop';
 import { tuning } from './core/tuning';
 import { PALETTE } from './render/palette';
+import { createPostProcessing } from './render/postfx';
+import { createSynthwaveSky } from './render/sky';
 import { ThirdPersonCamera } from './systems/camera/ThirdPersonCamera';
 import { CharacterController } from './systems/character/CharacterController';
 import { InputSystem } from './systems/input/InputSystem';
@@ -53,6 +49,7 @@ async function startGame(): Promise<() => void> {
   scene.background = new Color(PALETTE.nightSky);
   scene.fog = new Fog(PALETTE.nightSky, 22, 70);
   scene.add(new AmbientLight(PALETTE.neonCyan, 2.1));
+  const sky = createSynthwaveSky(scene);
 
   const renderer = new WebGLRenderer({ canvas, antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -65,23 +62,17 @@ async function startGame(): Promise<() => void> {
   const camera = thirdPersonCamera.camera;
   thirdPersonCamera.update(1 / 60);
 
-  const composer = new EffectComposer(renderer);
-  composer.addPass(new RenderPass(scene, camera));
-  const bloom = new BloomEffect({
-    intensity: 1.65,
-    luminanceThreshold: 0.12,
-    luminanceSmoothing: 0.35,
-    mipmapBlur: true,
-  });
-  composer.addPass(new EffectPass(camera, bloom));
+  const postfx = createPostProcessing(renderer, scene, camera);
 
-  const devPanel = import.meta.env.DEV ? new DevTuningPanel() : undefined;
+  const devPanel = import.meta.env.DEV
+    ? new DevTuningPanel(renderer)
+    : undefined;
 
   const resize = (): void => {
     const width = window.innerWidth;
     const height = window.innerHeight;
     renderer.setSize(width, height, false);
-    composer.setSize(width, height);
+    postfx.resize(width, height);
     thirdPersonCamera.resize(width, height);
   };
   window.addEventListener('resize', resize);
@@ -106,9 +97,10 @@ async function startGame(): Promise<() => void> {
       physicsWorld.step();
       character.syncVisual();
       thirdPersonCamera.update(fixedDeltaSeconds);
+      sky.update(fixedDeltaSeconds, camera.position);
     },
     render: () => {
-      composer.render();
+      postfx.render();
       devPanel?.recordFrame();
     },
   });
@@ -121,6 +113,18 @@ async function startGame(): Promise<() => void> {
           return { x: position.x, y: position.y, z: position.z };
         },
         isGrounded: () => character.isGrounded(),
+        getRenderStats: () => ({
+          drawCalls: renderer.info.render.calls,
+          triangles: renderer.info.render.triangles,
+        }),
+        getSceneInfo: () => ({
+          backgroundHex:
+            scene.background instanceof Color
+              ? `#${scene.background.getHexString()}`
+              : null,
+          fogEnabled: scene.fog !== null,
+          skyEnabled: scene.getObjectByName('synthwave-sky') !== undefined,
+        }),
       },
     });
   }
@@ -135,9 +139,10 @@ async function startGame(): Promise<() => void> {
     devPanel?.dispose();
     character.dispose(scene);
     disposeGraybox();
+    sky.dispose();
     window.removeEventListener('resize', resize);
     if (import.meta.env.DEV) Reflect.deleteProperty(window, '__NEON_DEBUG__');
-    composer.dispose();
+    postfx.dispose();
     renderer.dispose();
     physicsWorld.free();
   };

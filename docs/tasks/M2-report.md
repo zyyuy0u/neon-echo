@@ -1,0 +1,25 @@
+## REPORT
+- 結論: PASS — M2 合成波美術管線已完成，所有允許執行的驗收指令均 exit 0，紅線檢查無違反。
+- 產出: /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/render/materials.ts:1-108
+- 產出: /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/render/sky.ts:1-185
+- 產出: /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/render/postfx.ts:1-58
+- 產出: /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/core/tuning.ts:28-73
+- 產出: /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/world/graybox.ts:1-166
+- 產出: /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/systems/character/CharacterController.ts:2-70
+- 產出: /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/ui/DevTuningPanel.ts:1-77
+- 產出: /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/main.ts:2-146
+- 產出: /Users/zhengyuyou/Desktop/專案、系統/Site-Project/index.html:11-14
+- 產出: /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/style.css:25-130
+- 產出: /Users/zhengyuyou/Desktop/專案、系統/Site-Project/e2e/art.spec.ts:1-61
+- 產出: /Users/zhengyuyou/Desktop/專案、系統/Site-Project/docs/tasks/M2-report.md:1-25
+- 驗證證據: `npm run lint` → `eslint src tests e2e --max-warnings 0`，exit 0。
+- 驗證證據: `npm run typecheck` → `tsc --noEmit`，exit 0。
+- 驗證證據: `npm test` → `Test Files 2 passed (2)`、`Tests 5 passed (5)`，exit 0。
+- 驗證證據: `npm run build` → `✓ built in 142ms`；JS gzip `993.39 kB` < 1.5 MB，exit 0。
+- 驗證證據: `rg 'new THREE\.Mesh(Standard|Basic|Lambert|Phong)Material' src/world src/main.ts | wc -l` → `0`。
+- 驗證證據: `rg -c 'ShaderMaterial|RawShaderMaterial' src/render/sky.ts` → `4`；`rg -c 'scene\.fog' src/main.ts` → `2`。
+- 驗證證據: `rg -n 'bloom(Strength|Radius|Threshold)' src/core/tuning.ts src/render/postfx.ts` → tuning 定義及 postfx 使用均命中。
+- 驗證證據: `git diff -- tests/locomotion.test.ts | wc -l` → `0`。
+- 驗證證據: `git diff -- e2e/scaffold.spec.ts e2e/movement.spec.ts | wc -l` → `0`；既有 canvas ready/移動斷言保留。
+- 驗證證據: `git diff --check` → 無輸出，exit 0。
+- 未解決事項與風險: 依 REDLINES 未執行 `npm run e2e`；`e2e/art.spec.ts` 已寫好，需由主控外部執行以完成 WebGL 畫面、效能數據、截圖與 console 零 error 驗證。

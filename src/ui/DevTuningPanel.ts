@@ -1,4 +1,5 @@
 import { tuning, type Tuning } from '../core/tuning';
+import type { WebGLRenderer } from 'three';
 
 type NumericTuningKey = {
   [Key in keyof Tuning]: Tuning[Key] extends number ? Key : never;
@@ -21,22 +22,28 @@ const editableFields: readonly {
   { key: 'cameraDistance', label: 'Camera distance', step: 0.1 },
   { key: 'cameraSensitivity', label: 'Mouse sensitivity', step: 0.0001 },
   { key: 'cameraPositionSmoothing', label: 'Camera smoothing', step: 0.5 },
+  { key: 'bloomStrength', label: 'Bloom strength', step: 0.05 },
+  { key: 'bloomRadius', label: 'Bloom radius', step: 0.05 },
+  { key: 'bloomThreshold', label: 'Bloom threshold', step: 0.05 },
 ];
 
 export class DevTuningPanel {
   private readonly root = document.createElement('aside');
   private readonly fps = document.createElement('output');
+  private readonly rendererStats = document.createElement('output');
   private frameCount = 0;
   private sampleStart = performance.now();
 
-  public constructor() {
+  public constructor(private readonly renderer: WebGLRenderer) {
     this.root.id = 'tuning-panel';
     this.root.hidden = true;
     const heading = document.createElement('h2');
     heading.textContent = 'MOVEMENT LAB';
     this.fps.className = 'tuning-fps';
     this.fps.textContent = 'FPS --';
-    this.root.append(heading, this.fps);
+    this.rendererStats.className = 'tuning-renderer-stats';
+    this.rendererStats.textContent = 'DRAW -- · TRI --';
+    this.root.append(heading, this.fps, this.rendererStats);
 
     for (const field of editableFields) {
       const label = document.createElement('label');
@@ -66,6 +73,8 @@ export class DevTuningPanel {
     const elapsed = now - this.sampleStart;
     if (elapsed < 500) return;
     this.fps.textContent = `FPS ${Math.round((this.frameCount * 1000) / elapsed)}`;
+    const { calls, triangles } = this.renderer.info.render;
+    this.rendererStats.textContent = `DRAW ${calls} · TRI ${triangles.toLocaleString()}`;
     this.frameCount = 0;
     this.sampleStart = now;
   }
