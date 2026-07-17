@@ -20,6 +20,13 @@ test('moves and jumps through the development debug hook', async ({ page }) => {
     timeout: 15_000,
   });
   await expect(canvas).toBeVisible();
+  await page.evaluate(() =>
+    (
+      window as unknown as Window & {
+        __NEON_DEBUG__: { openMenu: (name: 'none') => void };
+      }
+    ).__NEON_DEBUG__.openMenu('none'),
+  );
 
   await expect
     .poll(() =>

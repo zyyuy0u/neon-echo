@@ -47,6 +47,11 @@ export class EndingState {
     return this.choice;
   }
 
+  public restore(choice: EndingChoice | null): void {
+    this.choice = choice ?? undefined;
+    this.choosing = false;
+  }
+
   public getPhase(): EndingPhase {
     if (this.choice) return 'resolved';
     if (this.choosing) return 'choosing';

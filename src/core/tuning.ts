@@ -28,6 +28,9 @@ export interface Tuning {
   cameraHeight: number;
   cameraCollisionPadding: number;
   cameraPositionSmoothing: number;
+  cameraFovKickCoefficient: number;
+  cameraShakeStrength: number;
+  particleDensityMultiplier: number;
   bloomStrength: number;
   bloomRadius: number;
   bloomThreshold: number;
@@ -77,6 +80,9 @@ export const tuning: Tuning = {
   cameraHeight: 0.85,
   cameraCollisionPadding: 0.18,
   cameraPositionSmoothing: 14,
+  cameraFovKickCoefficient: 1,
+  cameraShakeStrength: 1,
+  particleDensityMultiplier: 1,
   bloomStrength: 1.65,
   bloomRadius: 0.78,
   bloomThreshold: 0.55,
@@ -94,3 +100,11 @@ export const tuning: Tuning = {
   worldFogNear: 90,
   worldFogFar: 360,
 };
+
+export const DEFAULT_CAMERA_SENSITIVITY = tuning.cameraSensitivity;
+
+export function applyReducedMotion(enabled: boolean): void {
+  tuning.cameraFovKickCoefficient = enabled ? 0 : 1;
+  tuning.cameraShakeStrength = enabled ? 0 : 1;
+  tuning.particleDensityMultiplier = enabled ? 0.5 : 1;
+}

@@ -25,6 +25,13 @@ test('uses the dash and shard collection debug hooks', async ({
   await expect(canvas).toHaveAttribute('data-status', 'ready', {
     timeout: 15_000,
   });
+  await page.evaluate(() =>
+    (
+      window as unknown as Window & {
+        __NEON_DEBUG__: { openMenu: (name: 'none') => void };
+      }
+    ).__NEON_DEBUG__.openMenu('none'),
+  );
 
   const measureMovement = async (dash: boolean): Promise<number> => {
     await page.evaluate(() =>

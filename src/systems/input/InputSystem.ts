@@ -1,3 +1,9 @@
+import {
+  DEFAULT_BINDINGS,
+  type InputAction,
+  type KeyBindings,
+} from './bindings';
+
 export interface PointerDelta {
   x: number;
   y: number;
@@ -9,8 +15,13 @@ export class InputSystem {
   private readonly released = new Set<string>();
   private pointerX = 0;
   private pointerY = 0;
+  private bindings: KeyBindings;
 
-  public constructor(private readonly canvas: HTMLCanvasElement) {
+  public constructor(
+    private readonly canvas: HTMLCanvasElement,
+    bindings: Readonly<KeyBindings> = DEFAULT_BINDINGS,
+  ) {
+    this.bindings = { ...bindings };
     window.addEventListener('keydown', this.onKeyDown);
     window.addEventListener('keyup', this.onKeyUp);
     window.addEventListener('blur', this.onBlur);
@@ -31,10 +42,31 @@ export class InputSystem {
   }
 
   public getMovementAxes(): { x: number; y: number } {
-    const x = Number(this.isHeld('KeyD')) - Number(this.isHeld('KeyA'));
-    const y = Number(this.isHeld('KeyW')) - Number(this.isHeld('KeyS'));
+    const x =
+      Number(this.isActionHeld('moveRight')) -
+      Number(this.isActionHeld('moveLeft'));
+    const y =
+      Number(this.isActionHeld('moveForward')) -
+      Number(this.isActionHeld('moveBackward'));
     const length = Math.hypot(x, y);
     return length > 1 ? { x: x / length, y: y / length } : { x, y };
+  }
+
+  public isActionHeld(action: InputAction): boolean {
+    return this.isHeld(this.bindings[action]);
+  }
+
+  public wasActionPressed(action: InputAction): boolean {
+    return this.wasPressed(this.bindings[action]);
+  }
+
+  public wasActionReleased(action: InputAction): boolean {
+    return this.wasReleased(this.bindings[action]);
+  }
+
+  public setBindings(bindings: Readonly<KeyBindings>): void {
+    this.bindings = { ...bindings };
+    this.onBlur();
   }
 
   public consumePointerDelta(): PointerDelta {

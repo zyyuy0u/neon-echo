@@ -1,0 +1,19 @@
+## REPORT
+- 結論: PASS — M5 的原生 DOM/CSS 選單與 HUD、雙語 i18n、版本化存檔、設定/按鍵重映射、減少動態、鍵盤 a11y 與 dev hooks 均已完成，所有允許執行的驗收指令皆 exit 0。
+- 產出:
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/ui/i18n/zh.ts:1-91；/Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/ui/i18n/en.ts:1-91；/Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/ui/i18n/index.ts:1-55
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/systems/save/SaveSystem.ts:1-190；/Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/systems/input/bindings.ts:1-30；/Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/systems/input/InputSystem.ts:1-122
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/ui/MenuSystem.ts:1-378；/Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/ui/GameplayOverlay.ts:1-219；/Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/style.css:1-522
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/main.ts:1-446；/Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/core/GameLoop.ts:1-84；/Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/core/tuning.ts:1-110
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/tests/i18n.test.ts:1-42；/Users/zhengyuyou/Desktop/專案、系統/Site-Project/tests/save.test.ts:1-79；/Users/zhengyuyou/Desktop/專案、系統/Site-Project/tests/tuning.test.ts:1-15
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/e2e/ui.spec.ts:1-72；/Users/zhengyuyou/Desktop/專案、系統/Site-Project/e2e/scaffold.spec.ts:18-24；/Users/zhengyuyou/Desktop/專案、系統/Site-Project/e2e/movement.spec.ts:23-29；/Users/zhengyuyou/Desktop/專案、系統/Site-Project/e2e/art.spec.ts:29-35；/Users/zhengyuyou/Desktop/專案、系統/Site-Project/e2e/world.spec.ts:32-38；/Users/zhengyuyou/Desktop/專案、系統/Site-Project/e2e/gameplay.spec.ts:28-34
+- 驗證證據:
+  - `npm run lint` → `eslint src tests e2e --max-warnings 0`；exit 0。
+  - `npm run typecheck` → `tsc --noEmit`；exit 0。
+  - `npm test` → `Test Files 11 passed (11)`、`Tests 38 passed (38)`；exit 0。
+  - `npm run build` → `✓ 40 modules transformed.`、`✓ built in 159ms`；exit 0（gzip JS 1,012.60 kB）。
+  - `! rg '選單|繼續|設定' src/ui --glob '!src/ui/i18n/**'` 與英文 `textContent` 抽查 → 零命中；exit 0。
+  - `git diff --check` 與 `git diff --exit-code 215e225 -- package.json package-lock.json` → 無輸出；exit 0；既有 E2E diff 僅新增跳過主選單的 dev 步驟，無刪除斷言。
+- 未解決事項與風險:
+  - 依 REDLINES 未執行 `npm run e2e`；`e2e/ui.spec.ts` 與既有 specs 已通過 lint/typecheck，實際瀏覽器執行待後續允許的驗收。
+  - Vite build 仍有既有的單一大 chunk 警告；gzip JS 仍低於計畫的 1.5 MB 預算。

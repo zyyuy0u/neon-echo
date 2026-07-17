@@ -152,17 +152,88 @@ body {
   pointer-events: none;
 }
 
+#gameplay-ui[hidden],
+#menu-layer[hidden] {
+  display: none;
+}
+
+.hud {
+  /* 子元素皆為 absolute，容器必須自帶尺寸，否則 bounding box 為零
+     （可及性工具與 Playwright 會視為不可見）。 */
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity 350ms ease;
+}
+
+.hud.is-idle {
+  opacity: 0;
+}
+
+.ability-list {
+  position: absolute;
+  bottom: 1.25rem;
+  left: 1.25rem;
+  display: flex;
+  gap: 0.55rem;
+}
+
+.ability-icon {
+  display: grid;
+  width: 2.7rem;
+  height: 2.7rem;
+  place-items: center;
+  border: 2px dashed #8b8496;
+  border-radius: 0.35rem;
+  background: rgb(8 5 24 / 82%);
+  color: #b8b3c0;
+  filter: grayscale(1);
+  font-weight: 800;
+}
+
+.ability-icon.is-unlocked {
+  border-style: solid;
+  border-color: #00e5ff;
+  color: #fff;
+  filter: none;
+  box-shadow:
+    0 0 12px rgb(0 229 255 / 60%),
+    inset 0 0 10px rgb(255 46 196 / 22%);
+  text-shadow: 0 0 8px #00e5ff;
+}
+
+.ability-icon.is-unlocking {
+  animation: ability-unlock 700ms ease-out;
+}
+
 .shard-counter {
   position: absolute;
-  top: 1rem;
-  left: 1rem;
-  padding: 0.55rem 0.8rem;
-  border-left: 2px solid #00e5ff;
+  right: 1.25rem;
+  bottom: 1.25rem;
+  display: grid;
+  width: 5.2rem;
+  height: 5.2rem;
+  place-items: center;
+  border: 3px solid #00e5ff;
+  border-radius: 50%;
   background: rgb(8 5 24 / 72%);
   color: #fff;
   font-size: 0.8rem;
   letter-spacing: 0.12em;
   text-shadow: 0 0 8px #00e5ff;
+}
+
+.shard-counter::after {
+  position: absolute;
+  inset: 0.35rem;
+  border: 1px solid #ff2ec4;
+  border-radius: 50%;
+  content: '';
+}
+
+.shard-counter.is-pulsing {
+  animation: shard-pulse 550ms ease-out;
 }
 
 .gameplay-message {
@@ -206,6 +277,18 @@ body {
 .stele-overlay p {
   margin: 0.45rem 0;
   line-height: 1.55;
+}
+
+.stele-overlay[data-size='small'] p {
+  font-size: 0.9rem;
+}
+
+.stele-overlay[data-size='medium'] p {
+  font-size: 1.1rem;
+}
+
+.stele-overlay[data-size='large'] p {
+  font-size: 1.4rem;
 }
 
 .stele-overlay small {
@@ -257,4 +340,188 @@ body {
 .ending-overlay button:hover {
   outline: 2px solid #ffd319;
   box-shadow: 0 0 18px rgb(0 229 255 / 48%);
+}
+
+#menu-layer {
+  position: fixed;
+  z-index: 20;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background:
+    linear-gradient(135deg, rgb(26 11 46 / 94%), rgb(22 33 62 / 88%)),
+    radial-gradient(circle at 75% 20%, #c73866, transparent 46%);
+}
+
+.menu-panel {
+  position: relative;
+  width: min(36rem, 100%);
+  max-height: calc(100vh - 2rem);
+  padding: clamp(1.4rem, 4vw, 2.5rem);
+  overflow: auto;
+  border: 2px solid #00e5ff;
+  background: rgb(8 5 24 / 96%);
+  box-shadow:
+    0 0 30px rgb(0 229 255 / 32%),
+    inset 0 0 28px rgb(255 46 196 / 12%);
+  color: #fff;
+}
+
+.menu-panel::before {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 0.3rem;
+  background: linear-gradient(90deg, #ff2ec4, #ffd319, #00e5ff);
+  content: '';
+}
+
+.menu-panel h1 {
+  margin: 0 0 1.4rem;
+  color: #ff7bdb;
+  font-size: clamp(1.6rem, 6vw, 3.1rem);
+  letter-spacing: 0.16em;
+  text-shadow: 0 0 18px rgb(255 46 196 / 65%);
+}
+
+.menu-panel h2 {
+  margin: 1rem 0 0;
+  color: #73efff;
+  font-size: 1rem;
+  letter-spacing: 0.1em;
+}
+
+.menu-panel nav {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.menu-panel button,
+.menu-panel input,
+.menu-panel select {
+  min-height: 2.75rem;
+  border: 1px solid #00e5ff;
+  color: #fff;
+  background: #16213e;
+  font: inherit;
+}
+
+.menu-panel button {
+  padding: 0.65rem 1rem;
+  cursor: pointer;
+  letter-spacing: 0.06em;
+}
+
+.menu-panel button:disabled {
+  border-style: dashed;
+  opacity: 0.48;
+  cursor: not-allowed;
+}
+
+.menu-panel :focus-visible {
+  outline: 3px solid #ffd319;
+  outline-offset: 3px;
+  box-shadow: 0 0 0 6px rgb(255 211 25 / 24%);
+}
+
+.menu-version {
+  display: block;
+  margin-top: 1.25rem;
+  color: #d8faff;
+  text-align: right;
+}
+
+.settings-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.settings-grid > label {
+  display: grid;
+  grid-template-columns: minmax(10rem, 1fr) minmax(10rem, 1.4fr);
+  gap: 1rem;
+  align-items: center;
+}
+
+.settings-grid input[type='range'],
+.settings-grid select {
+  width: 100%;
+}
+
+.settings-grid .toggle-setting {
+  grid-template-columns: auto 1fr;
+}
+
+.toggle-setting input {
+  width: 2.75rem;
+}
+
+.toggle-setting small {
+  grid-column: 2;
+  color: #d8faff;
+  line-height: 1.4;
+}
+
+.binding-grid {
+  display: grid;
+  grid-template-columns: 1fr minmax(8rem, 1fr);
+  gap: 0.55rem 1rem;
+  align-items: center;
+}
+
+.binding-conflict {
+  min-height: 1.4rem;
+  margin: 0;
+  color: #ffd319;
+  font-weight: 700;
+}
+
+.menu-back {
+  margin-top: 0.5rem;
+}
+
+@keyframes ability-unlock {
+  50% {
+    transform: scale(1.35) rotate(4deg);
+    box-shadow: 0 0 30px #ffd319;
+  }
+}
+
+@keyframes shard-pulse {
+  50% {
+    transform: scale(1.2);
+    box-shadow: 0 0 28px #00e5ff;
+  }
+}
+
+@media (max-width: 36rem) {
+  .settings-grid > label {
+    grid-template-columns: 1fr;
+    gap: 0.4rem;
+  }
+
+  .settings-grid .toggle-setting {
+    grid-template-columns: auto 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+.reduced-motion *,
+.reduced-motion *::before,
+.reduced-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
 }

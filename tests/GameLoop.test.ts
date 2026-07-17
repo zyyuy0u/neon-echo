@@ -38,4 +38,26 @@ describe('GameLoop', () => {
     expect(render.mock.lastCall?.[0]).toBeCloseTo(0.5);
     loop.stop();
   });
+
+  it('keeps rendering but freezes fixed updates while paused', () => {
+    const scheduler = new ManualFrameScheduler();
+    const update = vi.fn();
+    const render = vi.fn();
+    const loop = new GameLoop({ update, render }, 0.01, scheduler);
+
+    loop.start();
+    scheduler.advance(100);
+    loop.setPaused(true);
+    scheduler.advance(125);
+    scheduler.advance(150);
+
+    expect(update).not.toHaveBeenCalled();
+    expect(render).toHaveBeenCalledTimes(3);
+
+    loop.setPaused(false);
+    scheduler.advance(175);
+    scheduler.advance(200);
+    expect(update).toHaveBeenCalledTimes(2);
+    loop.stop();
+  });
 });

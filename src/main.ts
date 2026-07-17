@@ -2,7 +2,11 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import { AmbientLight, Color, Fog, Scene, WebGLRenderer } from 'three';
 
 import { GameLoop } from './core/GameLoop';
-import { tuning } from './core/tuning';
+import {
+  applyReducedMotion,
+  DEFAULT_CAMERA_SENSITIVITY,
+  tuning,
+} from './core/tuning';
 import { STELES } from './content/steles';
 import { PALETTE } from './render/palette';
 import { createPostProcessing } from './render/postfx';
@@ -14,8 +18,20 @@ import { CollectibleState } from './systems/collectibles/CollectibleState';
 import { EndingState, type EndingChoice } from './systems/ending/EndingState';
 import { InputSystem } from './systems/input/InputSystem';
 import { PuzzleState, type PuzzleId } from './systems/puzzles/PuzzleState';
+import {
+  clearSaveData,
+  createDefaultSaveData,
+  hasSaveData,
+  loadSaveData,
+  SAVE_VERSION,
+  saveData,
+  type GameSettings,
+  type SaveData,
+} from './systems/save/SaveSystem';
 import { DevTuningPanel } from './ui/DevTuningPanel';
 import { GameplayOverlay } from './ui/GameplayOverlay';
+import { setLanguage, t } from './ui/i18n';
+import { MenuSystem, type MenuName } from './ui/MenuSystem';
 import { GameplayWorld } from './world/GameplayWorld';
 import { WorldBuilder } from './world/WorldBuilder';
 import { WORLD_ZONES } from './world/map/graph';
@@ -76,6 +92,16 @@ async function startGame(): Promise<() => void> {
 
   await initializeRapier();
 
+  const bootSave = loadSaveData();
+  let settings = structuredClone(bootSave.settings);
+  setLanguage(settings.language);
+  canvas.setAttribute('aria-label', t('game.canvasLabel'));
+  const loadingSignal = loading.querySelector<HTMLElement>('.loading-signal');
+  if (loadingSignal) loadingSignal.textContent = t('loading.initializing');
+  applyReducedMotion(settings.reducedMotion);
+  tuning.cameraSensitivity =
+    DEFAULT_CAMERA_SENSITIVITY * settings.mouseSensitivity;
+
   const scene = new Scene();
   scene.background = new Color(PALETTE.nightSky);
   scene.fog = new Fog(
@@ -99,8 +125,9 @@ async function startGame(): Promise<() => void> {
   const worldBuilder = new WorldBuilder(scene, physicsWorld);
   const gameplayWorld = new GameplayWorld(scene, physicsWorld, puzzles);
   const character = new CharacterController(physicsWorld, scene, abilities);
-  const input = new InputSystem(canvas);
+  const input = new InputSystem(canvas, settings.bindings);
   const overlay = new GameplayOverlay();
+  overlay.setSubtitleSize(settings.subtitleSize);
   const thirdPersonCamera = new ThirdPersonCamera(physicsWorld, character);
   const camera = thirdPersonCamera.camera;
   thirdPersonCamera.update(1 / 60);
@@ -111,15 +138,43 @@ async function startGame(): Promise<() => void> {
     ? new DevTuningPanel(renderer)
     : undefined;
 
-  abilities.onUnlock(({ ability }) => overlay.showUnlock(ability));
+  let sessionStarted = false;
+  let readSteleIds = new Set<string>();
+  let lastPuzzleSignature = JSON.stringify(puzzles.getAll());
+
+  const getSnapshot = (): SaveData => {
+    const position = character.getPosition();
+    return {
+      version: SAVE_VERSION,
+      abilities: [...abilities.getAll()],
+      collectedShardIds: [...collectibles.getAll()],
+      readSteleIds: [...readSteleIds],
+      puzzles: puzzles.getAll(),
+      playerPosition: { x: position.x, y: position.y, z: position.z },
+      settings: structuredClone(settings),
+      ending: { choice: ending.getChoice() ?? null },
+    };
+  };
+
+  const persist = (): void => {
+    if (sessionStarted) saveData(getSnapshot());
+    else saveData({ ...loadSaveData(), settings: structuredClone(settings) });
+  };
+
+  abilities.onUnlock(({ ability }) => {
+    overlay.showUnlock(ability);
+    if (sessionStarted) persist();
+  });
   collectibles.onCollect(({ id, count }) => {
     worldBuilder.setShardCollected(id);
-    overlay.setShardCount(count);
+    overlay.setShardCount(count, true);
+    if (sessionStarted) persist();
   });
 
   const chooseEnding = (choice: EndingChoice): void => {
     if (!ending.choose(choice)) return;
     overlay.showEnding(choice, collectibles.count);
+    persist();
   };
 
   const tryInteraction = (): void => {
@@ -131,7 +186,11 @@ async function startGame(): Promise<() => void> {
     });
     if (nearbyStele) {
       const content = STELES.find((entry) => entry.id === nearbyStele.id);
-      if (content) overlay.showStele(content);
+      if (content) {
+        overlay.showStele(content);
+        readSteleIds.add(content.id);
+        persist();
+      }
       return;
     }
 
@@ -173,14 +232,13 @@ async function startGame(): Promise<() => void> {
       const positionBeforeMove = character.getPosition();
       character.update(fixedDeltaSeconds, {
         move,
-        jumpPressed: input.wasPressed('Space'),
-        jumpHeld: input.isHeld('Space'),
-        jumpReleased: input.wasReleased('Space'),
-        dashPressed:
-          input.wasPressed('ShiftLeft') || input.wasPressed('ShiftRight'),
+        jumpPressed: input.wasActionPressed('jump'),
+        jumpHeld: input.isActionHeld('jump'),
+        jumpReleased: input.wasActionReleased('jump'),
+        dashPressed: input.wasActionPressed('dash'),
         inUpdraft: gameplayWorld.isInUpdraft(positionBeforeMove),
       });
-      if (input.wasPressed('KeyE')) tryInteraction();
+      if (input.wasActionPressed('interact')) tryInteraction();
       if (input.wasPressed('Backquote')) devPanel?.toggle();
       input.endFixedStep();
 
@@ -190,6 +248,11 @@ async function startGame(): Promise<() => void> {
       const position = character.getPosition();
       collectibles.collectNearest(position, tuning.shardPickupRadius);
       gameplayWorld.update(fixedDeltaSeconds, position);
+      const puzzleSignature = JSON.stringify(puzzles.getAll());
+      if (puzzleSignature !== lastPuzzleSignature) {
+        lastPuzzleSignature = puzzleSignature;
+        if (sessionStarted) persist();
+      }
       thirdPersonCamera.update(fixedDeltaSeconds);
       worldBuilder.update(fixedDeltaSeconds);
       sky.update(fixedDeltaSeconds, camera.position);
@@ -199,6 +262,113 @@ async function startGame(): Promise<() => void> {
       devPanel?.recordFrame();
     },
   });
+
+  const applySettings = (nextSettings: GameSettings): void => {
+    settings = structuredClone(nextSettings);
+    setLanguage(settings.language);
+    canvas.setAttribute('aria-label', t('game.canvasLabel'));
+    input.setBindings(settings.bindings);
+    overlay.setSubtitleSize(settings.subtitleSize);
+    tuning.cameraSensitivity =
+      DEFAULT_CAMERA_SENSITIVITY * settings.mouseSensitivity;
+    applyReducedMotion(settings.reducedMotion);
+    document.body.classList.toggle(
+      'reduced-motion',
+      settings.reducedMotion,
+    );
+  };
+
+  const restoreSnapshot = (snapshot: SaveData): void => {
+    abilities.restore(snapshot.abilities);
+    collectibles.restore(snapshot.collectedShardIds);
+    puzzles.restore(snapshot.puzzles);
+    ending.restore(snapshot.ending.choice);
+    readSteleIds = new Set(snapshot.readSteleIds);
+    worldBuilder.setCollectedShards(snapshot.collectedShardIds);
+    character.teleport(
+      snapshot.playerPosition.x,
+      snapshot.playerPosition.y,
+      snapshot.playerPosition.z,
+    );
+    thirdPersonCamera.update(1 / 60);
+    overlay.setAbilities(snapshot.abilities);
+    overlay.setShardCount(snapshot.collectedShardIds.length);
+    applySettings(snapshot.settings);
+    lastPuzzleSignature = JSON.stringify(puzzles.getAll());
+  };
+
+  const startSession = (snapshot: SaveData): void => {
+    restoreSnapshot(snapshot);
+    sessionStarted = true;
+    overlay.setActive(true);
+    loop.setPaused(false);
+  };
+
+  const startNewGame = (): void => {
+    clearSaveData();
+    const freshSave = createDefaultSaveData();
+    startSession(freshSave);
+    saveData(getSnapshot());
+    menu.setSettings(settings);
+  };
+
+  const openMenu = (name: MenuName): void => {
+    if (name === 'none') {
+      if (!sessionStarted) startNewGame();
+      overlay.setActive(true);
+      loop.setPaused(false);
+    } else {
+      loop.setPaused(true);
+      overlay.setActive(false);
+    }
+    menu.open(name);
+  };
+
+  const menu = new MenuSystem(settings, {
+    canContinue: () => sessionStarted || hasSaveData(),
+    onContinue: () => {
+      if (!sessionStarted) startSession(loadSaveData());
+      else {
+        overlay.setActive(true);
+        loop.setPaused(false);
+      }
+    },
+    onNewGame: startNewGame,
+    onResume: () => {
+      overlay.setActive(true);
+      loop.setPaused(false);
+    },
+    onMainMenu: () => {
+      if (sessionStarted) persist();
+      overlay.setActive(false);
+      loop.setPaused(true);
+    },
+    onSettingsChange: (nextSettings) => {
+      applySettings(nextSettings);
+      persist();
+    },
+  });
+
+  const onEscape = (event: KeyboardEvent): void => {
+    if (event.code === 'Escape' && menu.name === 'none' && sessionStarted) {
+      openMenu('pause');
+    }
+  };
+  const onPointerLockChange = (): void => {
+    if (
+      document.pointerLockElement === null &&
+      menu.name === 'none' &&
+      sessionStarted
+    ) {
+      openMenu('pause');
+    }
+  };
+  window.addEventListener('keydown', onEscape);
+  document.addEventListener('pointerlockchange', onPointerLockChange);
+
+  const autoSaveInterval = window.setInterval(() => {
+    if (sessionStarted) persist();
+  }, 30_000);
 
   if (import.meta.env.DEV) {
     Object.assign(window, {
@@ -234,6 +404,13 @@ async function startGame(): Promise<() => void> {
           fogEnabled: scene.fog !== null,
           skyEnabled: scene.getObjectByName('synthwave-sky') !== undefined,
         }),
+        getSaveData: () => structuredClone(sessionStarted ? getSnapshot() : loadSaveData()),
+        setLanguage: (language: 'zh-TW' | 'en') => {
+          applySettings({ ...settings, language });
+          menu.setSettings(settings);
+          persist();
+        },
+        openMenu,
       },
     });
   }
@@ -241,10 +418,15 @@ async function startGame(): Promise<() => void> {
   loading.hidden = true;
   canvas.dataset.status = 'ready';
   loop.start();
+  loop.setPaused(true);
 
   return () => {
     loop.stop();
+    window.clearInterval(autoSaveInterval);
+    window.removeEventListener('keydown', onEscape);
+    document.removeEventListener('pointerlockchange', onPointerLockChange);
     input.dispose();
+    menu.dispose();
     devPanel?.dispose();
     character.dispose(scene);
     gameplayWorld.dispose(scene);

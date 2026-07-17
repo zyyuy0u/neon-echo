@@ -95,6 +95,11 @@ export class WorldBuilder {
     this.collectedShardIds.add(id);
   }
 
+  public setCollectedShards(ids: readonly string[]): void {
+    this.collectedShardIds.clear();
+    for (const id of ids) this.setShardCollected(id);
+  }
+
   public update(deltaSeconds: number): void {
     const shardMesh = this.shardMesh;
     if (!shardMesh) return;

@@ -29,6 +29,13 @@ test('builds and renders the complete world within budget', async ({
     timeout: 15_000,
   });
   await expect(canvas).toBeVisible();
+  await page.evaluate(() =>
+    (
+      window as unknown as Window & {
+        __NEON_DEBUG__: { openMenu: (name: 'none') => void };
+      }
+    ).__NEON_DEBUG__.openMenu('none'),
+  );
 
   const worldStats = await page.evaluate(() =>
     (

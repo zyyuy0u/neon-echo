@@ -30,6 +30,11 @@ export class AbilityState {
     return true;
   }
 
+  public restore(abilities: readonly Ability[]): void {
+    this.unlocked.clear();
+    for (const ability of abilities) this.unlocked.add(ability);
+  }
+
   public onUnlock(listener: AbilityUnlockListener): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);

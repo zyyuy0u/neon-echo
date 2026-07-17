@@ -18,6 +18,7 @@ export class GameLoop {
   private frameHandle: number | null = null;
   private lastTimeMilliseconds: number | null = null;
   private running = false;
+  private paused = false;
 
   public constructor(
     private readonly callbacks: GameLoopCallbacks,
@@ -47,6 +48,17 @@ export class GameLoop {
     }
   }
 
+  public setPaused(paused: boolean): void {
+    if (this.paused === paused) return;
+    this.paused = paused;
+    this.accumulatorSeconds = 0;
+    this.lastTimeMilliseconds = null;
+  }
+
+  public isPaused(): boolean {
+    return this.paused;
+  }
+
   private readonly onFrame: FrameRequestCallback = (timeMilliseconds) => {
     if (!this.running) return;
 
@@ -58,9 +70,9 @@ export class GameLoop {
         this.maximumFrameSeconds,
       );
       this.lastTimeMilliseconds = timeMilliseconds;
-      this.accumulatorSeconds += elapsedSeconds;
+      if (!this.paused) this.accumulatorSeconds += elapsedSeconds;
 
-      while (this.accumulatorSeconds >= this.fixedDeltaSeconds) {
+      while (!this.paused && this.accumulatorSeconds >= this.fixedDeltaSeconds) {
         this.callbacks.update(this.fixedDeltaSeconds);
         this.accumulatorSeconds -= this.fixedDeltaSeconds;
       }

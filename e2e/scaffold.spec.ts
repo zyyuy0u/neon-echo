@@ -15,6 +15,13 @@ test('loads the playable canvas without browser errors', async ({
     timeout: 15_000,
   });
   await expect(canvas).toBeVisible();
+  await page.evaluate(() =>
+    (
+      window as unknown as Window & {
+        __NEON_DEBUG__: { openMenu: (name: 'none') => void };
+      }
+    ).__NEON_DEBUG__.openMenu('none'),
+  );
 
   const size = await canvas.evaluate((element) => ({
     width: element.clientWidth,

@@ -1,100 +1,144 @@
 import type { SteleContent } from '../content/steles';
-import type { Ability } from '../world/map/types';
 import type { EndingChoice } from '../systems/ending/EndingState';
+import type { SubtitleSize } from '../systems/save/SaveSystem';
+import type { Ability } from '../world/map/types';
+import { getLanguage, onLanguageChange, t } from './i18n';
 
-const ABILITY_LABELS: Readonly<Record<Ability, string>> = {
-  dash: '衝刺 DASH',
-  doubleJump: '二段跳 DOUBLE JUMP',
-  glide: '滑翔 GLIDE',
-};
+const ABILITIES: readonly Ability[] = ['dash', 'doubleJump', 'glide'];
+const ABILITY_KEYS = {
+  dash: ['ability.dash', 'ability.dashShort'],
+  doubleJump: ['ability.doubleJump', 'ability.doubleJumpShort'],
+  glide: ['ability.glide', 'ability.glideShort'],
+} as const;
 
-const ENDINGS: Readonly<
-  Record<EndingChoice, { title: string; lines: readonly string[] }>
-> = {
+const ENDING_KEYS = {
   awaken: {
-    title: '晨光重啟 · CITY AWAKENED',
+    title: 'ending.awakenTitle',
     lines: [
-      '你將全城殘響重新接入仍然呼吸的街道。',
-      '招牌先亮起，接著是久違的人聲與清晨電車。',
-      '沒有人忘記那場風暴，也沒有人被迫原諒。',
-      '城市帶著裂痕醒來，而你成為它第一位見證者。',
+      'ending.awakenLine1',
+      'ending.awakenLine2',
+      'ending.awakenLine3',
+      'ending.awakenLine4',
     ],
   },
   rest: {
-    title: '靜夜安眠 · ECHOES AT REST',
+    title: 'ending.restTitle',
     lines: [
-      '你解除封存，讓四十萬道殘響化作城市上空的微光。',
-      '最後一聲告別沒有恐懼，只有被允許結束的平靜。',
-      'AURORA 關閉核心，第一次停止計算正確答案。',
-      '空城仍在，而你帶著所有人的名字走向黎明。',
+      'ending.restLine1',
+      'ending.restLine2',
+      'ending.restLine3',
+      'ending.restLine4',
     ],
   },
-};
+} as const;
 
 export class GameplayOverlay {
   private readonly root = document.createElement('div');
+  private readonly hud = document.createElement('div');
+  private readonly abilityList = document.createElement('div');
   private readonly shardCounter = document.createElement('div');
+  private readonly shardValue = document.createElement('strong');
   private readonly message = document.createElement('div');
   private readonly stele = document.createElement('section');
   private readonly ending = document.createElement('section');
+  private readonly unlocked = new Set<Ability>();
+  private shardCount = 0;
+  private hideTimer: number | undefined;
+  private currentStele: SteleContent | undefined;
+  private subtitleSize: SubtitleSize = 'medium';
+  private readonly unsubscribeLanguage: () => void;
 
   public constructor() {
     this.root.id = 'gameplay-ui';
+    this.root.hidden = true;
+    this.hud.className = 'hud';
+    this.hud.setAttribute('aria-label', t('hud.abilities'));
+    this.abilityList.className = 'ability-list';
     this.shardCounter.className = 'shard-counter';
+    this.shardCounter.append(this.shardValue);
     this.message.className = 'gameplay-message';
+    this.message.setAttribute('role', 'status');
     this.stele.className = 'stele-overlay';
     this.ending.className = 'ending-overlay';
     this.stele.hidden = true;
     this.ending.hidden = true;
-    this.root.append(this.shardCounter, this.message, this.stele, this.ending);
+    this.hud.append(this.abilityList, this.shardCounter);
+    this.root.append(this.hud, this.message, this.stele, this.ending);
     document.body.append(this.root);
-    this.setShardCount(0);
+    this.renderHud();
+    this.unsubscribeLanguage = onLanguageChange(() => {
+      this.renderHud();
+      if (this.currentStele) this.renderStele();
+    });
   }
 
-  public setShardCount(count: number): void {
-    this.shardCounter.textContent = `殘響碎片 ${count} / 40`;
+  public setActive(active: boolean): void {
+    this.root.hidden = !active;
+    if (active) this.showHudEvent();
+  }
+
+  public setAbilities(abilities: readonly Ability[]): void {
+    this.unlocked.clear();
+    for (const ability of abilities) this.unlocked.add(ability);
+    this.renderHud();
+  }
+
+  public setShardCount(count: number, animate = false): void {
+    this.shardCount = count;
+    this.shardValue.textContent = `${count} / 40`;
+    this.shardCounter.setAttribute(
+      'aria-label',
+      `${t('hud.shards')} ${count} / 40`,
+    );
+    if (animate) {
+      this.shardCounter.classList.remove('is-pulsing');
+      void this.shardCounter.offsetWidth;
+      this.shardCounter.classList.add('is-pulsing');
+      this.showHudEvent();
+    }
+  }
+
+  public setSubtitleSize(size: SubtitleSize): void {
+    this.subtitleSize = size;
+    this.stele.dataset.size = size;
   }
 
   public showUnlock(ability: Ability): void {
-    this.message.textContent = `能力解鎖 · ${ABILITY_LABELS[ability]}`;
+    this.unlocked.add(ability);
+    this.renderHud(ability);
+    this.message.textContent = `${t('overlay.unlock')} · ${t(ABILITY_KEYS[ability][0])}`;
     this.message.classList.add('is-visible');
+    this.showHudEvent();
     window.setTimeout(() => this.message.classList.remove('is-visible'), 2400);
   }
 
   public showStele(content: SteleContent): void {
-    this.stele.replaceChildren();
-    const title = document.createElement('h2');
-    title.textContent = '記憶碑文 · MEMORY STELE';
-    const zh = document.createElement('p');
-    zh.textContent = content.zh;
-    const en = document.createElement('p');
-    en.lang = 'en';
-    en.textContent = content.en;
-    const hint = document.createElement('small');
-    hint.textContent = '按 E 關閉';
-    this.stele.append(title, zh, en, hint);
+    this.currentStele = content;
+    this.renderStele();
     this.stele.hidden = false;
+    this.showHudEvent();
   }
 
   public closeStele(): boolean {
     if (this.stele.hidden) return false;
     this.stele.hidden = true;
+    this.currentStele = undefined;
     return true;
   }
 
   public showEndingChoice(onChoose: (choice: EndingChoice) => void): void {
     this.ending.replaceChildren();
     const title = document.createElement('h1');
-    title.textContent = '決定殘響的黎明';
+    title.textContent = t('ending.choiceTitle');
     const prompt = document.createElement('p');
-    prompt.textContent = 'AURORA 將最後的選擇交給唯一醒著的人。';
+    prompt.textContent = t('ending.choicePrompt');
     const awaken = document.createElement('button');
     awaken.type = 'button';
-    awaken.textContent = '喚醒城市';
+    awaken.textContent = t('ending.awakenAction');
     awaken.addEventListener('click', () => onChoose('awaken'), { once: true });
     const rest = document.createElement('button');
     rest.type = 'button';
-    rest.textContent = '讓殘響安眠';
+    rest.textContent = t('ending.restAction');
     rest.addEventListener('click', () => onChoose('rest'), { once: true });
     this.ending.append(title, prompt, awaken, rest);
     this.ending.hidden = false;
@@ -102,21 +146,21 @@ export class GameplayOverlay {
   }
 
   public showEnding(choice: EndingChoice, shardCount: number): void {
-    const content = ENDINGS[choice];
+    const content = ENDING_KEYS[choice];
     this.ending.replaceChildren();
     const title = document.createElement('h1');
-    title.textContent = content.title;
+    title.textContent = t(content.title);
     this.ending.append(title);
-    for (const line of content.lines) {
+    for (const key of content.lines) {
       const paragraph = document.createElement('p');
-      paragraph.textContent = line;
+      paragraph.textContent = t(key);
       this.ending.append(paragraph);
     }
     const stats = document.createElement('strong');
-    stats.textContent = `收集統計：殘響碎片 ${shardCount} / 40`;
+    stats.textContent = t('ending.stats', { count: shardCount });
     const continueButton = document.createElement('button');
     continueButton.type = 'button';
-    continueButton.textContent = '繼續探索';
+    continueButton.textContent = t('ending.continue');
     continueButton.addEventListener(
       'click',
       () => {
@@ -129,6 +173,47 @@ export class GameplayOverlay {
   }
 
   public dispose(): void {
+    window.clearTimeout(this.hideTimer);
+    this.unsubscribeLanguage();
     this.root.remove();
+  }
+
+  private renderHud(flash?: Ability): void {
+    this.hud.setAttribute('aria-label', t('hud.abilities'));
+    this.abilityList.replaceChildren();
+    for (const ability of ABILITIES) {
+      const icon = document.createElement('span');
+      icon.className = 'ability-icon';
+      icon.classList.toggle('is-unlocked', this.unlocked.has(ability));
+      icon.classList.toggle('is-unlocking', flash === ability);
+      icon.textContent = t(ABILITY_KEYS[ability][1]);
+      icon.title = t(ABILITY_KEYS[ability][0]);
+      icon.setAttribute('aria-label', t(ABILITY_KEYS[ability][0]));
+      this.abilityList.append(icon);
+    }
+    this.setShardCount(this.shardCount);
+  }
+
+  private renderStele(): void {
+    if (!this.currentStele) return;
+    this.stele.replaceChildren();
+    this.stele.dataset.size = this.subtitleSize;
+    const title = document.createElement('h2');
+    title.textContent = t('stele.title');
+    const text = document.createElement('p');
+    text.lang = getLanguage();
+    text.textContent = this.currentStele[getLanguage() === 'en' ? 'en' : 'zh'];
+    const hint = document.createElement('small');
+    hint.textContent = t('stele.close');
+    this.stele.append(title, text, hint);
+  }
+
+  private showHudEvent(): void {
+    this.hud.classList.remove('is-idle');
+    window.clearTimeout(this.hideTimer);
+    this.hideTimer = window.setTimeout(
+      () => this.hud.classList.add('is-idle'),
+      4000,
+    );
   }
 }

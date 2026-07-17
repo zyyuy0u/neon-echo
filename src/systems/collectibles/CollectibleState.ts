@@ -24,6 +24,17 @@ export class CollectibleState {
     return this.collected.has(id);
   }
 
+  public getAll(): readonly string[] {
+    return [...this.collected];
+  }
+
+  public restore(ids: readonly string[]): void {
+    this.collected.clear();
+    for (const id of ids) {
+      if (this.shards.some((shard) => shard.id === id)) this.collected.add(id);
+    }
+  }
+
   public collect(id: string): boolean {
     if (
       this.collected.has(id) ||

@@ -103,6 +103,24 @@ export class PuzzleState {
     return this.abilities.unlock(PUZZLE_ABILITY[id]);
   }
 
+  public getAll(): Record<PuzzleId, PuzzleSnapshot> {
+    return {
+      pulseTrack: this.get('pulseTrack'),
+      lightBridge: this.get('lightBridge'),
+      windWell: this.get('windWell'),
+    };
+  }
+
+  public restore(snapshots: Readonly<Record<PuzzleId, PuzzleSnapshot>>): void {
+    this.pulseTrack.completed = snapshots.pulseTrack.completed;
+    this.lightBridge.completed = snapshots.lightBridge.completed;
+    this.windWell.completed = snapshots.windWell.completed;
+    this.activatedAltars.clear();
+    for (const id of Object.keys(snapshots) as PuzzleId[]) {
+      if (snapshots[id].altarActivated) this.activatedAltars.add(id);
+    }
+  }
+
   private getMachine(
     id: PuzzleId,
   ): PulseTrackPuzzle | LightBridgePuzzle | WindWellPuzzle {
