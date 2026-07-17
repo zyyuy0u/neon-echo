@@ -1,0 +1,35 @@
+## REPORT
+
+- 結論: BLOCKED — scaffold 與靜態/單元/建置驗收均完成，但本回合的 macOS sandbox 禁止 Chromium 註冊 Mach port，使 E2E 在瀏覽器啟動前即中止，無法產生截圖。
+- 產出: /Users/zhengyuyou/Desktop/專案、系統/Site-Project/.gitignore:1-7
+- 產出: /Users/zhengyuyou/Desktop/專案、系統/Site-Project/.prettierignore:1-5
+- 產出: /Users/zhengyuyou/Desktop/專案、系統/Site-Project/.prettierrc.json:1-4
+- 產出: /Users/zhengyuyou/Desktop/專案、系統/Site-Project/README.md:1-14
+- 產出: /Users/zhengyuyou/Desktop/專案、系統/Site-Project/docs/ASSETS.md:1-4
+- 產出: /Users/zhengyuyou/Desktop/專案、系統/Site-Project/docs/tasks/M0-report.md:1
+- 產出: /Users/zhengyuyou/Desktop/專案、系統/Site-Project/e2e/scaffold.spec.ts:1-32
+- 產出: /Users/zhengyuyou/Desktop/專案、系統/Site-Project/eslint.config.js:1-24
+- 產出: /Users/zhengyuyou/Desktop/專案、系統/Site-Project/index.html:1-14
+- 產出: /Users/zhengyuyou/Desktop/專案、系統/Site-Project/package-lock.json:1-2608
+- 產出: /Users/zhengyuyou/Desktop/專案、系統/Site-Project/package.json:1-31
+- 產出: /Users/zhengyuyou/Desktop/專案、系統/Site-Project/playwright.config.ts:1-26
+- 產出: /Users/zhengyuyou/Desktop/專案、系統/Site-Project/public/assets/.gitkeep:1
+- 產出: /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/core/GameLoop.ts:1-72
+- 產出: /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/main.ts:1-152
+- 產出: /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/render/palette.ts:1-9
+- 產出: /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/style.css:1-31
+- 產出: /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/systems/.gitkeep:1
+- 產出: /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/ui/.gitkeep:1
+- 產出: /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/world/.gitkeep:1
+- 產出: /Users/zhengyuyou/Desktop/專案、系統/Site-Project/tests/GameLoop.test.ts:1-41
+- 產出: /Users/zhengyuyou/Desktop/專案、系統/Site-Project/tsconfig.json:1-22
+- 驗證證據: `npm run lint` → exit 0；`eslint src tests e2e --max-warnings 0`。
+- 驗證證據: `npm run typecheck` → exit 0；`tsc --noEmit`；`tsconfig.json` 第 12–13 行為 `strict: true` 與 `noUncheckedIndexedAccess: true`。
+- 驗證證據: `npm test` → exit 0；`Test Files 1 passed (1)`；`Tests 1 passed (1)`。
+- 驗證證據: `npm run build` → exit 0；`vite v8.1.5`；`11 modules transformed`；`built in 160ms`。
+- 驗證證據: `npm run e2e` → exit 1；`Running 1 test using 1 worker`；Chromium 啟動即因 `bootstrap_check_in ... Permission denied (1100)` 失敗；未產生 PNG。
+- 驗證證據: `npm view three version`; `npm view @dimforge/rapier3d-compat version`; `npm view postprocessing version` → `0.185.1`; `0.19.3`; `6.39.2`，與 lockfile 一致。
+- 驗證證據: dependencies 鍵值檢查 → `@dimforge/rapier3d-compat, postprocessing, three`；無其他 runtime dependency。
+- 驗證證據: 目錄檢查 → `src/core`, `src/systems`, `src/world`, `src/render`, `src/ui`, `tests`, `e2e`, `public/assets` 全數存在。
+- 驗證證據: `rg '#1a0b2e|#ff2ec4|#00e5ff' src/render/palette.ts` → 三色分別命中第 2、5、6 行。
+- 未解決事項與風險: `npm run e2e` 必須在可啟動 Chromium 的非此 macOS sandbox 環境重跑；目前唯一未滿足項為 E2E exit 0 與 `test-results/` PNG 截圖。

@@ -1,0 +1,31 @@
+:root {
+  color: #00e5ff;
+  background: #1a0b2e;
+  font-family: 'Trebuchet MS', sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+#game-canvas {
+  display: block;
+  width: 100vw;
+  height: 100vh;
+}
+
+#loading {
+  position: fixed;
+  inset: 50% auto auto 50%;
+  transform: translate(-50%, -50%);
+  letter-spacing: 0.25em;
+  text-shadow: 0 0 12px #00e5ff;
+}
