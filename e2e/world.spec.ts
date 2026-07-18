@@ -8,6 +8,14 @@ interface NeonWorldDebugWindow extends Window {
       shards: number;
       steles: number;
       sanctuaries: number;
+      buildings: number;
+      signs: number;
+      streetlights: number;
+      trafficSignals: number;
+      benches: number;
+      trashBins: number;
+      skylineBuildings: number;
+      flightPaths: number;
     };
     getRenderStats: () => { drawCalls: number; triangles: number };
     teleport: (x: number, y: number, z: number) => void;
@@ -38,9 +46,7 @@ test('builds and renders the complete world within budget', async ({
   );
 
   const worldStats = await page.evaluate(() =>
-    (
-      window as unknown as NeonWorldDebugWindow
-    ).__NEON_DEBUG__.getWorldStats(),
+    (window as unknown as NeonWorldDebugWindow).__NEON_DEBUG__.getWorldStats(),
   );
   expect(worldStats).toEqual({
     zones: 5,
@@ -48,6 +54,14 @@ test('builds and renders the complete world within budget', async ({
     shards: 40,
     steles: 12,
     sanctuaries: 3,
+    buildings: 54,
+    signs: 48,
+    streetlights: 78,
+    trafficSignals: 12,
+    benches: 24,
+    trashBins: 24,
+    skylineBuildings: 48,
+    flightPaths: 4,
   });
 
   await expect
@@ -61,23 +75,21 @@ test('builds and renders the complete world within budget', async ({
     )
     .toBeGreaterThan(0);
   const plazaStats = await page.evaluate(() =>
-    (
-      window as unknown as NeonWorldDebugWindow
-    ).__NEON_DEBUG__.getRenderStats(),
+    (window as unknown as NeonWorldDebugWindow).__NEON_DEBUG__.getRenderStats(),
   );
   expect(plazaStats.drawCalls).toBeLessThan(300);
   expect(plazaStats.triangles).toBeLessThan(500_000);
 
   await page.evaluate(() =>
-    (
-      window as unknown as NeonWorldDebugWindow
-    ).__NEON_DEBUG__.teleport(300, 72, 50),
+    (window as unknown as NeonWorldDebugWindow).__NEON_DEBUG__.teleport(
+      300,
+      72,
+      50,
+    ),
   );
   await page.waitForTimeout(500);
   const spireStats = await page.evaluate(() =>
-    (
-      window as unknown as NeonWorldDebugWindow
-    ).__NEON_DEBUG__.getRenderStats(),
+    (window as unknown as NeonWorldDebugWindow).__NEON_DEBUG__.getRenderStats(),
   );
   expect(spireStats.drawCalls).toBeLessThan(300);
   expect(spireStats.triangles).toBeLessThan(500_000);

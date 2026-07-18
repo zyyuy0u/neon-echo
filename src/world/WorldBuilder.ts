@@ -35,6 +35,7 @@ import {
   createStructureMaterial,
 } from '../render/materials';
 import { PALETTE } from '../render/palette';
+import { CityVisuals, CITY_DECORATION_STATS } from './CityVisuals';
 import { WORLD_ZONES } from './map/graph';
 import type { Landmark, Platform, Vector3Tuple } from './map/types';
 
@@ -44,6 +45,14 @@ export interface WorldStats {
   shards: number;
   steles: number;
   sanctuaries: number;
+  buildings: number;
+  signs: number;
+  streetlights: number;
+  trafficSignals: number;
+  benches: number;
+  trashBins: number;
+  skylineBuildings: number;
+  flightPaths: number;
 }
 
 function setTransform(
@@ -71,6 +80,7 @@ export class WorldBuilder {
   private readonly collectedShardIds = new Set<string>();
   private shardMesh: InstancedMesh | undefined;
   private guideMaterial: ShaderMaterial | undefined;
+  private readonly cityVisuals: CityVisuals;
   private elapsedSeconds = 0;
   private reducedMotion = false;
 
@@ -80,6 +90,9 @@ export class WorldBuilder {
   ) {
     this.root.name = 'neon-echo-world';
     scene.add(this.root);
+    // cityVisuals 必須先於 buildPlacements 建立：buildShards 內呼叫 update(0)，
+    // update 會轉呼叫 cityVisuals.update（初始化順序錯誤即開機崩潰）。
+    this.cityVisuals = new CityVisuals(this.root);
     this.buildPlatforms();
     this.buildLandmarks();
     this.buildPlacements();
@@ -96,6 +109,7 @@ export class WorldBuilder {
         0,
       ),
       sanctuaries: WORLD_ZONES.filter((zone) => zone.sanctuary).length,
+      ...CITY_DECORATION_STATS,
     };
   }
 
@@ -114,12 +128,14 @@ export class WorldBuilder {
     if (this.guideMaterial) {
       this.guideMaterial.uniforms.uMotion!.value = reducedMotion ? 0 : 1;
     }
+    this.cityVisuals.update(this.elapsedSeconds, reducedMotion);
   }
 
   public update(deltaSeconds: number): void {
     const shardMesh = this.shardMesh;
     if (!shardMesh) return;
     this.elapsedSeconds += deltaSeconds;
+    this.cityVisuals.update(this.elapsedSeconds, this.reducedMotion);
     if (this.guideMaterial) {
       this.guideMaterial.uniforms.uTime!.value = this.elapsedSeconds;
       this.guideMaterial.uniforms.uMotion!.value = this.reducedMotion ? 0 : 1;
@@ -144,6 +160,7 @@ export class WorldBuilder {
 
   public dispose(): void {
     this.scene.remove(this.root);
+    this.cityVisuals.dispose();
     for (const body of this.bodies) this.physicsWorld.removeRigidBody(body);
     const geometries = new Set<BufferGeometry>();
     this.root.traverse((object) => {

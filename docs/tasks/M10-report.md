@@ -1,0 +1,21 @@
+## REPORT
+
+- 結論: BLOCKED — 城市化實作與所有非瀏覽器驗收均完成，但本機 managed sandbox 阻擋 Chromium 啟動，無法在此環境完成實機效能與多視角截圖閘。
+- 產出:
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/world/cityTextures.ts:1-235
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/world/CityVisuals.ts:1-1031
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/world/WorldBuilder.ts:41-159
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/tests/city.test.ts:1-102
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/e2e/city.spec.ts:1-79
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/e2e/world.spec.ts:4-102
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/docs/tasks/M10-report.md:1-21
+- 驗證證據:
+  - `npm run lint` → `eslint src tests e2e --max-warnings 0`，exit 0。
+  - `npm run typecheck` → `tsc --noEmit`，exit 0。
+  - `npm test` → `Test Files 29 passed (29)`；`Tests 111 passed (111)`，exit 0。
+  - `npm run build` → `454 modules transformed`；`✓ built in 144ms`，exit 0。
+  - `npx playwright test e2e/city.spec.ts --workers=1` → Chromium 啟動前失敗：`MachPortRendezvousServer ... Permission denied (1100)`；遊戲與測試碼均未執行。
+- drawCalls/triangles 自估: drawCalls 約 150、triangles 約 50,000；城市層固定新增約 35 個批次 draw calls，主要幾何依實例數估約 13,000 triangles，加既有世界/角色/後處理後仍保守低於 300 / 500,000 紅線。
+- 未解決事項與風險:
+  - 需由主控在可啟動 Chromium 的環境執行 `e2e/city.spec.ts`，取得街道、建築近景、天際線三張截圖與實測 renderer stats。
+  - 需由主控執行既有十二條 e2e 與最終四視角美術審查；本機未執行被明確禁止的 `npm run e2e`。
