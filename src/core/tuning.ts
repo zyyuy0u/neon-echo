@@ -60,7 +60,7 @@ export interface Tuning {
 
 // Mutable by design: the development tuning panel edits these values live.
 export const tuning: Tuning = {
-  runSpeed: 16.0, // user 指定：原 8.0 的兩倍
+  runSpeed: 32.0, // user 指定：原 8.0 的四倍
   groundAccelerationTime: 0.15,
   groundDecelerationTime: 0.1,
   airControl: 0.65,
