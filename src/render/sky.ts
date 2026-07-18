@@ -51,7 +51,7 @@ export function createSynthwaveSky(scene: Scene): SynthwaveSky {
       void main() {
         float height = clamp(vDirection.y * 0.95 + 0.08, 0.0, 1.0);
         vec3 sunset = mix(uHorizon, uRose, smoothstep(0.0, 0.32, height));
-        vec3 color = mix(sunset, uZenith, smoothstep(0.22, 0.86, height));
+        vec3 color = mix(sunset, uZenith, smoothstep(0.16, 0.62, height));
         gl_FragColor = vec4(color, 1.0);
       }
     `,

@@ -37,6 +37,7 @@ export interface SaveData {
   playerPosition: SavedPosition;
   settings: GameSettings;
   ending: { choice: EndingChoice | null };
+  playtimeSeconds: number;
 }
 
 const PUZZLE_IDS: readonly PuzzleId[] = [
@@ -83,6 +84,7 @@ export function createDefaultSaveData(): SaveData {
     playerPosition: { x: 0, y: 1.2, z: 0 },
     settings: createDefaultSettings(),
     ending: { choice: null },
+    playtimeSeconds: 0,
   };
 }
 
@@ -98,7 +100,9 @@ function isSaveData(value: unknown): value is SaveData {
   if (!isObject(value) || value.version !== SAVE_VERSION) return false;
   if (
     !Array.isArray(value.abilities) ||
-    !value.abilities.every((ability) => ABILITIES.includes(ability as Ability)) ||
+    !value.abilities.every((ability) =>
+      ABILITIES.includes(ability as Ability),
+    ) ||
     !Array.isArray(value.collectedShardIds) ||
     !value.collectedShardIds.every((id) => typeof id === 'string') ||
     !Array.isArray(value.readSteleIds) ||
@@ -123,12 +127,8 @@ function isSaveData(value: unknown): value is SaveData {
     !isFiniteNumber(settings.mouseSensitivity) ||
     typeof settings.reducedMotion !== 'boolean' ||
     !isFiniteNumber(settings.volume) ||
-    !['small', 'medium', 'large'].includes(
-      settings.subtitleSize as string,
-    ) ||
-    !INPUT_ACTIONS.every(
-      (action) => typeof bindings[action] === 'string',
-    )
+    !['small', 'medium', 'large'].includes(settings.subtitleSize as string) ||
+    !INPUT_ACTIONS.every((action) => typeof bindings[action] === 'string')
   ) {
     return false;
   }
@@ -148,6 +148,8 @@ function isSaveData(value: unknown): value is SaveData {
     return false;
   }
   return (
+    isFiniteNumber(value.playtimeSeconds) &&
+    value.playtimeSeconds >= 0 &&
     isObject(value.ending) &&
     (value.ending.choice === null ||
       value.ending.choice === 'awaken' ||
@@ -157,7 +159,24 @@ function isSaveData(value: unknown): value is SaveData {
 
 /** Migration entry point. Add prior-version migrations here as schemas evolve. */
 export function migrateSaveData(value: unknown): SaveData | undefined {
-  return isSaveData(value) ? structuredClone(value) : undefined;
+  if (!isObject(value) || value.version !== SAVE_VERSION) return undefined;
+  const candidate = {
+    ...value,
+    playtimeSeconds: value.playtimeSeconds ?? 0,
+  };
+  return isSaveData(candidate) ? structuredClone(candidate) : undefined;
+}
+
+export function advancePlaytime(
+  currentSeconds: number,
+  elapsedSeconds: number,
+): number {
+  const current = Math.max(
+    0,
+    Number.isFinite(currentSeconds) ? currentSeconds : 0,
+  );
+  if (!Number.isFinite(elapsedSeconds) || elapsedSeconds <= 0) return current;
+  return current + elapsedSeconds;
 }
 
 function resolveStorage(storage?: Storage): Storage | undefined {

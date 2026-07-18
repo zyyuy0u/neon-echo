@@ -1,4 +1,8 @@
-import RAPIER from '@dimforge/rapier3d-compat';
+import {
+  ColliderDesc,
+  RigidBodyDesc,
+  type World,
+} from '@dimforge/rapier3d-compat';
 import {
   BoxGeometry,
   EdgesGeometry,
@@ -90,7 +94,7 @@ export const GRAYBOX_PIECES: readonly GrayboxPiece[] = [
   ...stairs,
 ];
 
-export function createGraybox(scene: Scene, world: RAPIER.World): () => void {
+export function createGraybox(scene: Scene, world: World): () => void {
   const group = new Group();
   group.name = 'graybox-trial-ground';
   const structureMaterial = createStructureMaterial();
@@ -129,14 +133,14 @@ export function createGraybox(scene: Scene, world: RAPIER.World): () => void {
     group.add(outline);
 
     const body = world.createRigidBody(
-      RAPIER.RigidBodyDesc.fixed().setTranslation(...piece.position),
+      RigidBodyDesc.fixed().setTranslation(...piece.position),
     );
     const rotation = new Quaternion().setFromEuler(
       new Euler(...(piece.rotation ?? [0, 0, 0])),
     );
     body.setRotation(rotation, false);
     world.createCollider(
-      RAPIER.ColliderDesc.cuboid(
+      ColliderDesc.cuboid(
         piece.size[0] / 2,
         piece.size[1] / 2,
         piece.size[2] / 2,

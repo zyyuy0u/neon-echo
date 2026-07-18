@@ -1,4 +1,11 @@
-import RAPIER from '@dimforge/rapier3d-compat';
+import {
+  ColliderDesc,
+  RigidBodyDesc,
+  type Collider,
+  type KinematicCharacterController,
+  type RigidBody,
+  type World,
+} from '@dimforge/rapier3d-compat';
 import { CapsuleGeometry, Group, Mesh, type Scene, Vector3 } from 'three';
 
 import { tuning } from '../../core/tuning';
@@ -8,6 +15,7 @@ import type { AbilityState } from '../abilities/AbilityState';
 import {
   createLocomotionState,
   stepLocomotion,
+  type LocomotionResult,
   type LocomotionState,
 } from './locomotion';
 
@@ -21,31 +29,28 @@ export interface CharacterInput {
 }
 
 export class CharacterController {
-  public readonly collider: RAPIER.Collider;
-  private readonly body: RAPIER.RigidBody;
-  private readonly controller: RAPIER.KinematicCharacterController;
+  public readonly collider: Collider;
+  private readonly body: RigidBody;
+  private readonly controller: KinematicCharacterController;
   private readonly visual = new Group();
   private locomotion: LocomotionState = createLocomotionState();
   private grounded = false;
 
   public constructor(
-    private readonly world: RAPIER.World,
+    private readonly world: World,
     scene: Scene,
     private readonly abilities?: AbilityState,
     spawn = { x: 0, y: 1.2, z: 0 },
   ) {
     this.body = world.createRigidBody(
-      RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(
+      RigidBodyDesc.kinematicPositionBased().setTranslation(
         spawn.x,
         spawn.y,
         spawn.z,
       ),
     );
     this.collider = world.createCollider(
-      RAPIER.ColliderDesc.capsule(
-        tuning.characterHalfHeight,
-        tuning.characterRadius,
-      ),
+      ColliderDesc.capsule(tuning.characterHalfHeight, tuning.characterRadius),
       this.body,
     );
 
@@ -78,7 +83,7 @@ export class CharacterController {
     this.syncVisual();
   }
 
-  public update(deltaSeconds: number, input: CharacterInput): void {
+  public update(deltaSeconds: number, input: CharacterInput): LocomotionResult {
     const result = stepLocomotion(
       this.locomotion,
       {
@@ -108,6 +113,7 @@ export class CharacterController {
     if (Math.abs(movement.y - desired.y) > tuning.characterControllerOffset) {
       this.locomotion.velocity.y = 0;
     }
+    return result;
   }
 
   public syncVisual(): void {

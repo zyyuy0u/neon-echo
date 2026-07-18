@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  advancePlaytime,
   clearSaveData,
   createDefaultSaveData,
   hasSaveData,
@@ -48,11 +49,21 @@ describe('save system', () => {
     data.playerPosition = { x: 12, y: 4, z: -8 };
     data.settings.language = 'en';
     data.ending.choice = 'awaken';
+    data.playtimeSeconds = advancePlaytime(data.playtimeSeconds, 123.5);
 
     saveData(data, storage);
 
     expect(loadSaveData(storage)).toEqual(data);
     expect(loadSaveData(storage).version).toBe(SAVE_VERSION);
+    expect(loadSaveData(storage).playtimeSeconds).toBe(123.5);
+  });
+
+  it('only advances playtime for positive elapsed time', () => {
+    const elapsed = advancePlaytime(42, 3.5);
+
+    expect(elapsed).toBe(45.5);
+    expect(advancePlaytime(elapsed, -100)).toBe(elapsed);
+    expect(advancePlaytime(elapsed, Number.NaN)).toBe(elapsed);
   });
 
   it.each([

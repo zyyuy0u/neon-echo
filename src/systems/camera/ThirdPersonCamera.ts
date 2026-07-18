@@ -1,4 +1,4 @@
-import RAPIER from '@dimforge/rapier3d-compat';
+import { Ray, type World } from '@dimforge/rapier3d-compat';
 import { PerspectiveCamera, Vector3 } from 'three';
 
 import { tuning } from '../../core/tuning';
@@ -20,7 +20,7 @@ export class ThirdPersonCamera {
   private readonly rayDirection = new Vector3();
 
   public constructor(
-    private readonly world: RAPIER.World,
+    private readonly world: World,
     private readonly character: CharacterController,
   ) {}
 
@@ -67,7 +67,7 @@ export class ThirdPersonCamera {
     if (desiredDistance > Number.EPSILON) {
       this.rayDirection.divideScalar(desiredDistance);
       const hit = this.world.castRay(
-        new RAPIER.Ray(this.target, this.rayDirection),
+        new Ray(this.target, this.rayDirection),
         desiredDistance,
         true,
         undefined,

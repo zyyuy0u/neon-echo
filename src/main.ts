@@ -1,4 +1,7 @@
-import RAPIER from '@dimforge/rapier3d-compat';
+import {
+  init as initializeRapierModule,
+  World,
+} from '@dimforge/rapier3d-compat';
 import { AmbientLight, Color, Fog, Scene, WebGLRenderer } from 'three';
 
 import { GameLoop } from './core/GameLoop';
@@ -9,16 +12,19 @@ import {
 } from './core/tuning';
 import { STELES } from './content/steles';
 import { PALETTE } from './render/palette';
+import { createParticleSystem } from './render/particles';
 import { createPostProcessing } from './render/postfx';
 import { createSynthwaveSky } from './render/sky';
 import { ThirdPersonCamera } from './systems/camera/ThirdPersonCamera';
 import { AbilityState } from './systems/abilities/AbilityState';
+import { AudioSystem } from './systems/audio/AudioSystem';
 import { CharacterController } from './systems/character/CharacterController';
 import { CollectibleState } from './systems/collectibles/CollectibleState';
 import { EndingState, type EndingChoice } from './systems/ending/EndingState';
 import { InputSystem } from './systems/input/InputSystem';
 import { PuzzleState, type PuzzleId } from './systems/puzzles/PuzzleState';
 import {
+  advancePlaytime,
   clearSaveData,
   createDefaultSaveData,
   hasSaveData,
@@ -55,7 +61,7 @@ async function initializeRapier(): Promise<void> {
   try {
     // rapier3d-compat 0.19.3 still forwards its embedded WASM using the old
     // wasm-bindgen signature. Keep the compatibility init scoped and quiet.
-    await RAPIER.init();
+    await initializeRapierModule();
   } finally {
     console.warn = warn;
   }
@@ -115,15 +121,21 @@ async function startGame(): Promise<() => void> {
   const renderer = new WebGLRenderer({ canvas, antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
-  const physicsWorld = new RAPIER.World({ x: 0, y: -tuning.gravity, z: 0 });
+  const physicsWorld = new World({ x: 0, y: -tuning.gravity, z: 0 });
   const abilities = new AbilityState();
   const puzzles = new PuzzleState(abilities);
   const ending = new EndingState();
   const shardPlacements = WORLD_ZONES.flatMap((zone) => zone.shards);
   const stelePlacements = WORLD_ZONES.flatMap((zone) => zone.steles);
   const collectibles = new CollectibleState(shardPlacements);
+  const audio = new AudioSystem(settings.volume);
+  audio.bindGestureUnlock(window);
+  const particles = createParticleSystem(scene, settings.reducedMotion);
   const worldBuilder = new WorldBuilder(scene, physicsWorld);
-  const gameplayWorld = new GameplayWorld(scene, physicsWorld, puzzles);
+  const gameplayWorld = new GameplayWorld(scene, physicsWorld, puzzles, {
+    onPuzzleProgress: (_id, completed) =>
+      audio.play(completed ? 'puzzleComplete' : 'puzzleProgress'),
+  });
   const character = new CharacterController(physicsWorld, scene, abilities);
   const input = new InputSystem(canvas, settings.bindings);
   const overlay = new GameplayOverlay();
@@ -141,6 +153,9 @@ async function startGame(): Promise<() => void> {
   let sessionStarted = false;
   let readSteleIds = new Set<string>();
   let lastPuzzleSignature = JSON.stringify(puzzles.getAll());
+  let playtimeSeconds = bootSave.playtimeSeconds;
+  let shardStreak = 0;
+  let lastShardPickupPlaytime = Number.NEGATIVE_INFINITY;
 
   const getSnapshot = (): SaveData => {
     const position = character.getPosition();
@@ -153,6 +168,7 @@ async function startGame(): Promise<() => void> {
       playerPosition: { x: position.x, y: position.y, z: position.z },
       settings: structuredClone(settings),
       ending: { choice: ending.getChoice() ?? null },
+      playtimeSeconds,
     };
   };
 
@@ -163,17 +179,34 @@ async function startGame(): Promise<() => void> {
 
   abilities.onUnlock(({ ability }) => {
     overlay.showUnlock(ability);
+    audio.play('abilityUnlock');
+    particles.unlockHalo(character.getPosition());
     if (sessionStarted) persist();
   });
   collectibles.onCollect(({ id, count }) => {
     worldBuilder.setShardCollected(id);
     overlay.setShardCount(count, true);
+    const placement = shardPlacements.find((shard) => shard.id === id);
+    if (placement) {
+      const [x, y, z] = placement.position;
+      particles.burstShard({ x, y, z });
+    }
+    shardStreak =
+      playtimeSeconds - lastShardPickupPlaytime <= 4 ? shardStreak + 1 : 1;
+    lastShardPickupPlaytime = playtimeSeconds;
+    audio.play('shardPickup', { streak: shardStreak });
     if (sessionStarted) persist();
   });
 
   const chooseEnding = (choice: EndingChoice): void => {
     if (!ending.choose(choice)) return;
-    overlay.showEnding(choice, collectibles.count);
+    audio.triggerEnding(choice);
+    particles.triggerEnding(choice);
+    overlay.showEnding(choice, {
+      shards: collectibles.count,
+      steles: readSteleIds.size,
+      playtimeSeconds,
+    });
     persist();
   };
 
@@ -188,6 +221,7 @@ async function startGame(): Promise<() => void> {
       const content = STELES.find((entry) => entry.id === nearbyStele.id);
       if (content) {
         overlay.showStele(content);
+        audio.play('steleOpen');
         readSteleIds.add(content.id);
         persist();
       }
@@ -230,7 +264,7 @@ async function startGame(): Promise<() => void> {
         input.getMovementAxes(),
       );
       const positionBeforeMove = character.getPosition();
-      character.update(fixedDeltaSeconds, {
+      const locomotion = character.update(fixedDeltaSeconds, {
         move,
         jumpPressed: input.wasActionPressed('jump'),
         jumpHeld: input.isActionHeld('jump'),
@@ -238,6 +272,9 @@ async function startGame(): Promise<() => void> {
         dashPressed: input.wasActionPressed('dash'),
         inUpdraft: gameplayWorld.isInUpdraft(positionBeforeMove),
       });
+      if (locomotion.jumped) audio.play('jump');
+      if (locomotion.doubleJumped) audio.play('doubleJump');
+      if (locomotion.dashStarted) audio.play('dash');
       if (input.wasActionPressed('interact')) tryInteraction();
       if (input.wasPressed('Backquote')) devPanel?.toggle();
       input.endFixedStep();
@@ -246,6 +283,9 @@ async function startGame(): Promise<() => void> {
       physicsWorld.step();
       character.syncVisual();
       const position = character.getPosition();
+      if (sessionStarted) {
+        playtimeSeconds = advancePlaytime(playtimeSeconds, fixedDeltaSeconds);
+      }
       collectibles.collectNearest(position, tuning.shardPickupRadius);
       gameplayWorld.update(fixedDeltaSeconds, position);
       const puzzleSignature = JSON.stringify(puzzles.getAll());
@@ -255,6 +295,8 @@ async function startGame(): Promise<() => void> {
       }
       thirdPersonCamera.update(fixedDeltaSeconds);
       worldBuilder.update(fixedDeltaSeconds);
+      particles.update(fixedDeltaSeconds);
+      audio.update(fixedDeltaSeconds, position);
       sky.update(fixedDeltaSeconds, camera.position);
     },
     render: () => {
@@ -269,13 +311,12 @@ async function startGame(): Promise<() => void> {
     canvas.setAttribute('aria-label', t('game.canvasLabel'));
     input.setBindings(settings.bindings);
     overlay.setSubtitleSize(settings.subtitleSize);
+    audio.setVolume(settings.volume);
+    particles.setReducedMotion(settings.reducedMotion);
     tuning.cameraSensitivity =
       DEFAULT_CAMERA_SENSITIVITY * settings.mouseSensitivity;
     applyReducedMotion(settings.reducedMotion);
-    document.body.classList.toggle(
-      'reduced-motion',
-      settings.reducedMotion,
-    );
+    document.body.classList.toggle('reduced-motion', settings.reducedMotion);
   };
 
   const restoreSnapshot = (snapshot: SaveData): void => {
@@ -283,6 +324,7 @@ async function startGame(): Promise<() => void> {
     collectibles.restore(snapshot.collectedShardIds);
     puzzles.restore(snapshot.puzzles);
     ending.restore(snapshot.ending.choice);
+    playtimeSeconds = snapshot.playtimeSeconds;
     readSteleIds = new Set(snapshot.readSteleIds);
     worldBuilder.setCollectedShards(snapshot.collectedShardIds);
     character.teleport(
@@ -293,6 +335,7 @@ async function startGame(): Promise<() => void> {
     thirdPersonCamera.update(1 / 60);
     overlay.setAbilities(snapshot.abilities);
     overlay.setShardCount(snapshot.collectedShardIds.length);
+    if (snapshot.ending.choice) particles.triggerEnding(snapshot.ending.choice);
     applySettings(snapshot.settings);
     lastPuzzleSignature = JSON.stringify(puzzles.getAll());
   };
@@ -404,7 +447,9 @@ async function startGame(): Promise<() => void> {
           fogEnabled: scene.fog !== null,
           skyEnabled: scene.getObjectByName('synthwave-sky') !== undefined,
         }),
-        getSaveData: () => structuredClone(sessionStarted ? getSnapshot() : loadSaveData()),
+        getSaveData: () =>
+          structuredClone(sessionStarted ? getSnapshot() : loadSaveData()),
+        getAudioState: () => audio.getState(),
         setLanguage: (language: 'zh-TW' | 'en') => {
           applySettings({ ...settings, language });
           menu.setSettings(settings);
@@ -431,6 +476,8 @@ async function startGame(): Promise<() => void> {
     character.dispose(scene);
     gameplayWorld.dispose(scene);
     worldBuilder.dispose();
+    particles.dispose();
+    audio.dispose();
     overlay.dispose();
     sky.dispose();
     window.removeEventListener('resize', resize);

@@ -32,6 +32,22 @@ const ENDING_KEYS = {
   },
 } as const;
 
+export interface EndingStats {
+  shards: number;
+  steles: number;
+  playtimeSeconds: number;
+}
+
+export function formatPlaytime(totalSeconds: number): string {
+  const seconds = Math.max(0, Math.floor(totalSeconds));
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const remainder = seconds % 60;
+  return [hours, minutes, remainder]
+    .map((value) => value.toString().padStart(2, '0'))
+    .join(':');
+}
+
 export class GameplayOverlay {
   private readonly root = document.createElement('div');
   private readonly hud = document.createElement('div');
@@ -127,6 +143,7 @@ export class GameplayOverlay {
   }
 
   public showEndingChoice(onChoose: (choice: EndingChoice) => void): void {
+    delete this.ending.dataset.choice;
     this.ending.replaceChildren();
     const title = document.createElement('h1');
     title.textContent = t('ending.choiceTitle');
@@ -145,8 +162,9 @@ export class GameplayOverlay {
     awaken.focus();
   }
 
-  public showEnding(choice: EndingChoice, shardCount: number): void {
+  public showEnding(choice: EndingChoice, endingStats: EndingStats): void {
     const content = ENDING_KEYS[choice];
+    this.ending.dataset.choice = choice;
     this.ending.replaceChildren();
     const title = document.createElement('h1');
     title.textContent = t(content.title);
@@ -157,7 +175,12 @@ export class GameplayOverlay {
       this.ending.append(paragraph);
     }
     const stats = document.createElement('strong');
-    stats.textContent = t('ending.stats', { count: shardCount });
+    stats.className = 'ending-stats';
+    stats.textContent = t('ending.stats', {
+      shards: endingStats.shards,
+      steles: endingStats.steles,
+      playtime: formatPlaytime(endingStats.playtimeSeconds),
+    });
     const continueButton = document.createElement('button');
     continueButton.type = 'button';
     continueButton.textContent = t('ending.continue');

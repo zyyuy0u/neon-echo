@@ -67,7 +67,16 @@ export class MenuSystem {
     this.current = name;
     this.rebinding = undefined;
     this.root.hidden = name === 'none';
-    if (name !== 'none') this.render();
+    if (name !== 'none') {
+      this.render();
+    } else if (
+      document.activeElement instanceof HTMLElement &&
+      this.root.contains(document.activeElement)
+    ) {
+      // 關閉選單時若焦點仍在選單內，鍵盤事件會在 root 的 stopPropagation
+      // 處被吃掉，window 層的輸入/音訊解鎖監聽將收不到——必須移出焦點。
+      document.activeElement.blur();
+    }
   }
 
   public setSettings(settings: GameSettings): void {

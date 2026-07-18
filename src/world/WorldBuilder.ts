@@ -1,4 +1,9 @@
-import RAPIER from '@dimforge/rapier3d-compat';
+import {
+  ColliderDesc,
+  RigidBodyDesc,
+  type RigidBody,
+  type World,
+} from '@dimforge/rapier3d-compat';
 import {
   BoxGeometry,
   BufferGeometry,
@@ -53,7 +58,7 @@ function setTransform(
 
 export class WorldBuilder {
   private readonly root = new Group();
-  private readonly bodies: RAPIER.RigidBody[] = [];
+  private readonly bodies: RigidBody[] = [];
   private readonly materials = new Set<Material>();
   private readonly shardPositions = WORLD_ZONES.flatMap((zone) =>
     zone.shards.map((shard) => shard.position),
@@ -67,7 +72,7 @@ export class WorldBuilder {
 
   public constructor(
     private readonly scene: Scene,
-    private readonly physicsWorld: RAPIER.World,
+    private readonly physicsWorld: World,
   ) {
     this.root.name = 'neon-echo-world';
     scene.add(this.root);
@@ -196,7 +201,7 @@ export class WorldBuilder {
 
   private createPlatformCollider(platform: Platform): void {
     const body = this.physicsWorld.createRigidBody(
-      RAPIER.RigidBodyDesc.fixed().setTranslation(...platform.position),
+      RigidBodyDesc.fixed().setTranslation(...platform.position),
     );
     if (platform.rotation) {
       const rotation = new Quaternion().setFromEuler(
@@ -205,7 +210,7 @@ export class WorldBuilder {
       body.setRotation(rotation, false);
     }
     this.physicsWorld.createCollider(
-      RAPIER.ColliderDesc.cuboid(
+      ColliderDesc.cuboid(
         platform.size[0] / 2,
         platform.size[1] / 2,
         platform.size[2] / 2,
@@ -387,14 +392,14 @@ export class WorldBuilder {
   private createLandmarkCollider(landmark: Landmark): void {
     const [width, height, depth] = landmark.scale;
     const body = this.physicsWorld.createRigidBody(
-      RAPIER.RigidBodyDesc.fixed().setTranslation(
+      RigidBodyDesc.fixed().setTranslation(
         landmark.position[0],
         landmark.position[1] + height / 2,
         landmark.position[2],
       ),
     );
     this.physicsWorld.createCollider(
-      RAPIER.ColliderDesc.cuboid(width * 0.2, height / 2, depth * 0.2),
+      ColliderDesc.cuboid(width * 0.2, height / 2, depth * 0.2),
       body,
     );
     this.bodies.push(body);

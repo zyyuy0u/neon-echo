@@ -8,6 +8,11 @@ interface GameplayDebugWindow extends Window {
     getAbilities: () => readonly string[];
     getShardCount: () => number;
     collectNearestShard: () => string | undefined;
+    getAudioState: () => {
+      initialized: boolean;
+      volume: number;
+      respectsVolume: boolean;
+    };
   };
 }
 
@@ -32,6 +37,21 @@ test('uses the dash and shard collection debug hooks', async ({
       }
     ).__NEON_DEBUG__.openMenu('none'),
   );
+  await page.keyboard.press('KeyW');
+  // 手勢解鎖與事件派發有時序落差，斷言採輪詢式。
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        (
+          window as unknown as GameplayDebugWindow
+        ).__NEON_DEBUG__.getAudioState(),
+      ),
+    )
+    .toMatchObject({
+      initialized: true,
+      volume: 0.8,
+      respectsVolume: true,
+    });
 
   const measureMovement = async (dash: boolean): Promise<number> => {
     await page.evaluate(() =>

@@ -37,6 +37,8 @@ describe('i18n dictionaries', () => {
   it('switches languages and interpolates values', () => {
     setLanguage('en');
     expect(t('menu.settings')).toBe('Settings');
-    expect(t('ending.stats', { count: 7 })).toContain('7 / 40');
+    expect(
+      t('ending.stats', { shards: 7, steles: 3, playtime: '00:02:10' }),
+    ).toContain('7 / 40');
   });
 });

@@ -1,4 +1,9 @@
-import RAPIER from '@dimforge/rapier3d-compat';
+import {
+  ColliderDesc,
+  RigidBodyDesc,
+  type Collider,
+  type World,
+} from '@dimforge/rapier3d-compat';
 import {
   BoxGeometry,
   CylinderGeometry,
@@ -19,6 +24,10 @@ interface Position {
   x: number;
   y: number;
   z: number;
+}
+
+export interface GameplayWorldEvents {
+  onPuzzleProgress?: (id: PuzzleId, completed: boolean) => void;
 }
 
 const PULSE_POSITIONS = [
@@ -43,9 +52,9 @@ const ALTARS: Readonly<Record<PuzzleId, Position>> = {
 export class GameplayWorld {
   private readonly root = new Group();
   private readonly pulseMeshes: Mesh[] = [];
-  private readonly pulseColliders: RAPIER.Collider[] = [];
+  private readonly pulseColliders: Collider[] = [];
   private readonly bridge: Mesh;
-  private readonly bridgeCollider: RAPIER.Collider;
+  private readonly bridgeCollider: Collider;
   private readonly disposables: Array<{ dispose: () => void }> = [];
   private readonly occupiedPulseSegments = new Set<number>();
   private readonly occupiedSwitches = new Set<number>();
@@ -53,8 +62,9 @@ export class GameplayWorld {
 
   public constructor(
     scene: Scene,
-    private readonly physicsWorld: RAPIER.World,
+    private readonly physicsWorld: World,
     private readonly puzzles: PuzzleState,
+    private readonly events: GameplayWorldEvents = {},
   ) {
     this.root.name = 'gameplay-puzzle-world';
     scene.add(this.root);
@@ -69,10 +79,10 @@ export class GameplayWorld {
       this.root.add(mesh);
       this.pulseMeshes.push(mesh);
       const body = physicsWorld.createRigidBody(
-        RAPIER.RigidBodyDesc.kinematicPositionBased().setTranslation(x, y, z),
+        RigidBodyDesc.kinematicPositionBased().setTranslation(x, y, z),
       );
       const collider = physicsWorld.createCollider(
-        RAPIER.ColliderDesc.cuboid(5, 0.4, 4),
+        ColliderDesc.cuboid(5, 0.4, 4),
         body,
       );
       this.pulseColliders.push(collider);
@@ -97,10 +107,10 @@ export class GameplayWorld {
     this.bridge.visible = false;
     this.root.add(this.bridge);
     const bridgeBody = physicsWorld.createRigidBody(
-      RAPIER.RigidBodyDesc.fixed().setTranslation(350, 2, -54),
+      RigidBodyDesc.fixed().setTranslation(350, 2, -54),
     );
     this.bridgeCollider = physicsWorld.createCollider(
-      RAPIER.ColliderDesc.cuboid(17, 0.4, 4),
+      ColliderDesc.cuboid(17, 0.4, 4),
       bridgeBody,
     );
     this.bridgeCollider.setEnabled(false);
@@ -136,7 +146,17 @@ export class GameplayWorld {
         pulse !== undefined &&
         this.isNear(player, { x: pulse[0], y: pulse[1], z: pulse[2] }, 7);
       if (occupied && !this.occupiedPulseSegments.has(index)) {
-        this.puzzles.pulseTrack.visit(index, this.elapsedSeconds);
+        const wasCompleted = this.puzzles.pulseTrack.completed;
+        const progressed = this.puzzles.pulseTrack.visit(
+          index,
+          this.elapsedSeconds,
+        );
+        if (!wasCompleted && progressed) {
+          this.events.onPuzzleProgress?.(
+            'pulseTrack',
+            !wasCompleted && this.puzzles.pulseTrack.completed,
+          );
+        }
       }
       if (occupied) this.occupiedPulseSegments.add(index);
       else this.occupiedPulseSegments.delete(index);
@@ -145,7 +165,14 @@ export class GameplayWorld {
     SWITCH_POSITIONS.forEach(([x, y, z], index) => {
       const occupied = this.isNear(player, { x, y, z }, 3.5);
       if (occupied && !this.occupiedSwitches.has(index)) {
-        this.puzzles.lightBridge.stepOn(index);
+        const wasCompleted = this.puzzles.lightBridge.completed;
+        const progressed = this.puzzles.lightBridge.stepOn(index);
+        if (!wasCompleted && progressed) {
+          this.events.onPuzzleProgress?.(
+            'lightBridge',
+            !wasCompleted && this.puzzles.lightBridge.completed,
+          );
+        }
       }
       if (occupied) this.occupiedSwitches.add(index);
       else this.occupiedSwitches.delete(index);
@@ -155,7 +182,11 @@ export class GameplayWorld {
     this.bridgeCollider.setEnabled(bridgeEnabled);
 
     if (this.isInUpdraft(player) && player.y >= 28) {
+      const wasCompleted = this.puzzles.windWell.completed;
       this.puzzles.windWell.reachHeight(player.y, 28);
+      if (!wasCompleted && this.puzzles.windWell.completed) {
+        this.events.onPuzzleProgress?.('windWell', true);
+      }
     }
   }
 

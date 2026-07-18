@@ -66,7 +66,7 @@ export const en = {
   'ending.restLine2': 'The last goodbye holds no fear, only permission to end.',
   'ending.restLine3': 'AURORA closes the core and stops calculating the right answer.',
   'ending.restLine4': 'The empty city remains as you carry every name toward dawn.',
-  'ending.stats': 'Collected: Echo shards {count} / 40',
+  'ending.stats': 'Stats: Echo shards {shards} / 40 · Memory steles {steles} / 12 · Playtime {playtime}',
   'ending.continue': 'Continue Exploring',
   'loading.initializing': 'INITIALIZING ECHO…',
   'game.canvasLabel': 'NEON ECHO game view',

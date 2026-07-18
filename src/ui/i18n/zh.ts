@@ -64,7 +64,7 @@ export const zh = {
   'ending.restLine2': '最後一聲告別沒有恐懼，只有被允許結束的平靜。',
   'ending.restLine3': 'AURORA 關閉核心，第一次停止計算正確答案。',
   'ending.restLine4': '空城仍在，而你帶著所有人的名字走向黎明。',
-  'ending.stats': '收集統計：殘響碎片 {count} / 40',
+  'ending.stats': '統計：殘響碎片 {shards} / 40 · 記憶碑文 {steles} / 12 · 遊玩時間 {playtime}',
   'ending.continue': '繼續探索',
   'loading.initializing': '正在初始化殘響…',
   'game.canvasLabel': 'NEON ECHO 遊戲畫面',
