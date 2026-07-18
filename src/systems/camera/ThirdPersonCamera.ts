@@ -65,7 +65,8 @@ export class ThirdPersonCamera {
       this.movingWithoutPointerSeconds = 0;
     }
     const horizontalSign = tuning.invertCameraX ? 1 : -1;
-    const verticalSign = tuning.invertCameraY ? 1 : -1;
+    // 預設（invertCameraY=false）：指標往下 = 視角往下（user 2026-07-18 回報修正）。
+    const verticalSign = tuning.invertCameraY ? -1 : 1;
     this.yaw += delta.x * tuning.cameraSensitivity * horizontalSign;
     this.pitch = Math.min(
       tuning.cameraPitchMax,
