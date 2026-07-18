@@ -53,6 +53,12 @@ describe('save system', () => {
     data.tutorialFlags.jumpGap = true;
     data.objectiveTracking.customTargetId = 'landmark-ring';
     data.ending.choice = 'awaken';
+    data.unlockedAchievementIds = ['first-shard', 'first-warp'];
+    data.statistics = {
+      warpCount: 3,
+      photoCount: 2,
+      endings: ['awaken'],
+    };
     data.playtimeSeconds = advancePlaytime(data.playtimeSeconds, 123.5);
     data.dayPhase = 0.375;
 
@@ -71,6 +77,11 @@ describe('save system', () => {
       'skylift',
       'spire',
     ]);
+    expect(loadSaveData(storage).unlockedAchievementIds).toEqual([
+      'first-shard',
+      'first-warp',
+    ]);
+    expect(loadSaveData(storage).statistics).toEqual(data.statistics);
   });
 
   it('migrates v1 settings with auto camera enabled and fresh tutorials', () => {
@@ -157,6 +168,26 @@ describe('save system', () => {
 
     expect(loadSaveData(storage).objectiveTracking).toEqual({
       customTargetId: null,
+    });
+  });
+
+  it('migrates v6 saves with fresh achievements and statistics', () => {
+    const storage = new MemoryStorage();
+    const legacy = createDefaultSaveData() as unknown as Record<
+      string,
+      unknown
+    >;
+    legacy.version = 6;
+    delete legacy.unlockedAchievementIds;
+    delete legacy.statistics;
+    storage.setItem(SAVE_STORAGE_KEY, JSON.stringify(legacy));
+
+    const migrated = loadSaveData(storage);
+    expect(migrated.unlockedAchievementIds).toEqual([]);
+    expect(migrated.statistics).toEqual({
+      warpCount: 0,
+      photoCount: 0,
+      endings: [],
     });
   });
 

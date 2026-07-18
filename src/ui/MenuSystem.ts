@@ -2,14 +2,34 @@ import { INPUT_ACTIONS, type InputAction } from '../systems/input/bindings';
 import type { GameSettings } from '../systems/save/SaveSystem';
 import type { GamepadMenuAction } from '../systems/input/GamepadSystem';
 import type { WarpAnchor } from '../systems/warp/WarpSystem';
+import {
+  ACHIEVEMENTS,
+  ACHIEVEMENT_PROGRESS_TOTAL,
+} from '../systems/achievements/definitions';
+import type { StatisticsSnapshot } from '../systems/statistics/Statistics';
+import { formatPlaytime } from './GameplayOverlay';
 import { onLanguageChange, t } from './i18n';
 
 export type MenuName =
-  'main' | 'pause' | 'warp' | 'settings' | 'controls' | 'none';
+  | 'main'
+  | 'pause'
+  | 'warp'
+  | 'settings'
+  | 'controls'
+  | 'achievements'
+  | 'none';
 
 export interface WarpMenuEntry {
   anchor: WarpAnchor;
   unlocked: boolean;
+}
+
+export interface ExtrasMenuData {
+  unlockedAchievementIds: readonly string[];
+  playtimeSeconds: number;
+  shardCount: number;
+  steleCount: number;
+  statistics: Readonly<StatisticsSnapshot>;
 }
 
 export interface MenuCallbacks {
@@ -18,7 +38,9 @@ export interface MenuCallbacks {
   onNewGame: () => void;
   onResume: () => void;
   onMap: () => void;
+  onPhotoMode: () => void;
   onMainMenu: () => void;
+  getExtrasData: () => ExtrasMenuData;
   getWarpEntries: () => readonly WarpMenuEntry[];
   onWarp: (anchor: WarpAnchor) => void;
   onUiSound: (event: 'uiMove' | 'uiConfirm' | 'uiBack') => void;
@@ -40,6 +62,8 @@ export class MenuSystem {
   private readonly panel = document.createElement('section');
   private current: MenuName = 'main';
   private settingsOrigin: 'main' | 'pause' = 'main';
+  private achievementsOrigin: 'main' | 'pause' = 'main';
+  private extrasTab: 'achievements' | 'statistics' = 'achievements';
   private settings: GameSettings;
   private rebinding: InputAction | undefined;
   private readonly unsubscribeLanguage: () => void;
@@ -126,6 +150,7 @@ export class MenuSystem {
     if (this.current === 'warp') this.renderWarp();
     if (this.current === 'settings') this.renderSettings();
     if (this.current === 'controls') this.renderControls();
+    if (this.current === 'achievements') this.renderAchievements();
   }
 
   private renderMain(): void {
@@ -148,7 +173,21 @@ export class MenuSystem {
     const controlsButton = this.createButton(t('menu.controls'), () =>
       this.open('controls'),
     );
-    nav.append(continueButton, newGameButton, settingsButton, controlsButton);
+    const achievementsButton = this.createButton(
+      t('menu.achievements'),
+      () => {
+        this.achievementsOrigin = 'main';
+        this.extrasTab = 'achievements';
+        this.open('achievements');
+      },
+    );
+    nav.append(
+      continueButton,
+      newGameButton,
+      settingsButton,
+      controlsButton,
+      achievementsButton,
+    );
     const version = document.createElement('small');
     version.className = 'menu-version';
     version.textContent = t('menu.version');
@@ -167,6 +206,14 @@ export class MenuSystem {
     });
     const warp = this.createButton(t('menu.warp'), () => this.open('warp'));
     const map = this.createButton(t('menu.map'), () => this.callbacks.onMap());
+    const photo = this.createButton(t('menu.photoMode'), () =>
+      this.callbacks.onPhotoMode(),
+    );
+    const achievements = this.createButton(t('menu.achievements'), () => {
+      this.achievementsOrigin = 'pause';
+      this.extrasTab = 'achievements';
+      this.open('achievements');
+    });
     const settings = this.createButton(t('menu.settings'), () => {
       this.settingsOrigin = 'pause';
       this.open('settings');
@@ -175,7 +222,7 @@ export class MenuSystem {
       this.callbacks.onMainMenu();
       this.open('main');
     });
-    nav.append(resume, settings, warp, map, main);
+    nav.append(resume, settings, warp, map, photo, achievements, main);
     this.panel.append(title, nav);
     resume.focus();
   }
@@ -443,6 +490,110 @@ export class MenuSystem {
     back.focus();
   }
 
+  private renderAchievements(): void {
+    const data = this.callbacks.getExtrasData();
+    const unlocked = new Set(data.unlockedAchievementIds);
+    const title = document.createElement('h1');
+    title.textContent = t('achievements.title');
+    const tabs = document.createElement('div');
+    tabs.className = 'extras-tabs';
+    tabs.setAttribute('role', 'tablist');
+    const achievementTab = this.createButton(t('achievements.tab'), () => {
+      this.extrasTab = 'achievements';
+      this.render();
+    });
+    achievementTab.setAttribute('role', 'tab');
+    achievementTab.setAttribute(
+      'aria-selected',
+      String(this.extrasTab === 'achievements'),
+    );
+    const statisticsTab = this.createButton(t('statistics.tab'), () => {
+      this.extrasTab = 'statistics';
+      this.render();
+    });
+    statisticsTab.setAttribute('role', 'tab');
+    statisticsTab.setAttribute(
+      'aria-selected',
+      String(this.extrasTab === 'statistics'),
+    );
+    tabs.append(achievementTab, statisticsTab);
+    this.panel.append(title, tabs);
+
+    if (this.extrasTab === 'achievements') {
+      const progress = document.createElement('strong');
+      progress.className = 'achievement-progress';
+      progress.setAttribute('role', 'status');
+      progress.textContent = t('achievements.progress', {
+        count: Math.min(unlocked.size, ACHIEVEMENT_PROGRESS_TOTAL),
+        total: ACHIEVEMENT_PROGRESS_TOTAL,
+      });
+      const list = document.createElement('ul');
+      list.className = 'achievement-list';
+      for (const definition of ACHIEVEMENTS) {
+        const isUnlocked = unlocked.has(definition.id);
+        const item = document.createElement('li');
+        item.className = 'achievement-item';
+        item.classList.toggle('is-unlocked', isUnlocked);
+        item.dataset.achievementId = definition.id;
+        const itemTitle = document.createElement('strong');
+        itemTitle.textContent =
+          definition.hidden && !isUnlocked
+            ? t('achievements.hiddenTitle')
+            : t(definition.titleKey);
+        const description = document.createElement('span');
+        description.textContent =
+          definition.hidden && !isUnlocked
+            ? t('achievements.hiddenDescription')
+            : t(definition.descriptionKey);
+        item.append(itemTitle, description);
+        list.append(item);
+      }
+      this.panel.append(progress, list);
+    } else {
+      const statistics = document.createElement('dl');
+      statistics.className = 'statistics-list';
+      const addStatistic = (labelKey: string, value: string): void => {
+        const label = document.createElement('dt');
+        label.textContent = t(labelKey);
+        const result = document.createElement('dd');
+        result.textContent = value;
+        statistics.append(label, result);
+      };
+      addStatistic(
+        'statistics.playtime',
+        formatPlaytime(data.playtimeSeconds),
+      );
+      addStatistic('statistics.shards', `${data.shardCount} / 40`);
+      addStatistic('statistics.steles', `${data.steleCount} / 12`);
+      addStatistic('statistics.warps', String(data.statistics.warpCount));
+      addStatistic('statistics.photos', String(data.statistics.photoCount));
+      addStatistic(
+        'statistics.endings',
+        ['awaken', 'rest']
+          .map((choice) =>
+            t(`statistics.ending.${choice}`, {
+              mark: data.statistics.endings.includes(
+                choice as 'awaken' | 'rest',
+              )
+                ? '✓'
+                : '—',
+            }),
+          )
+          .join(' · '),
+      );
+      this.panel.append(statistics);
+    }
+    const back = this.createButton(
+      t('menu.back'),
+      () => this.open(this.achievementsOrigin),
+      'uiBack',
+    );
+    back.className = 'menu-back';
+    this.panel.append(back);
+    if (this.extrasTab === 'achievements') achievementTab.focus();
+    else statisticsTab.focus();
+  }
+
   private renderOverwriteConfirmation(): void {
     this.panel.replaceChildren();
     this.panel.setAttribute('role', 'alertdialog');
@@ -558,6 +709,8 @@ export class MenuSystem {
       } else if (this.current === 'settings') this.open(this.settingsOrigin);
       else if (this.current === 'warp') this.open('pause');
       else if (this.current === 'controls') this.open('main');
+      else if (this.current === 'achievements')
+        this.open(this.achievementsOrigin);
       return;
     }
     const isTab = event.key === 'Tab';

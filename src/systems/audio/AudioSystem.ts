@@ -16,6 +16,7 @@ export const AUDIO_EVENTS = [
   'shardTick',
   'steleBlip',
   'endingTrigger',
+  'achievementSting',
 ] as const;
 
 export type AudioEvent = (typeof AUDIO_EVENTS)[number];
@@ -150,6 +151,13 @@ const TONES: Readonly<Record<AudioEvent, Tone>> = {
     duration: 1.4,
     gain: 0.18,
     wave: 'sine',
+  },
+  achievementSting: {
+    frequency: 523.25,
+    endFrequency: 1046.5,
+    duration: 0.5,
+    gain: 0.14,
+    wave: 'triangle',
   },
 };
 
@@ -329,9 +337,17 @@ export class AudioSystem {
 
   public play(event: AudioEvent, options: AudioEventOptions = {}): void {
     if (!this.context || !this.sfxBus || this.sfxVolume === 0) return;
-    if (event === 'abilityUnlock' || event === 'shrineFanfare') {
+    if (
+      event === 'abilityUnlock' ||
+      event === 'shrineFanfare' ||
+      event === 'achievementSting'
+    ) {
       this.playArpeggio(
-        event === 'shrineFanfare' ? [0, 4, 7, 11, 12] : [0, 4, 7, 12],
+        event === 'shrineFanfare'
+          ? [0, 4, 7, 11, 12]
+          : event === 'achievementSting'
+            ? [0, 7, 12]
+            : [0, 4, 7, 12],
         TONES[event],
       );
       return;

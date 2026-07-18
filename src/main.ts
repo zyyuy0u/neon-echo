@@ -23,6 +23,7 @@ import {
   normalizeDayPhase,
 } from './systems/mood/dayCycle';
 import { AbilityState } from './systems/abilities/AbilityState';
+import { AchievementEngine } from './systems/achievements/AchievementEngine';
 import { AudioSystem } from './systems/audio/AudioSystem';
 import { CharacterController } from './systems/character/CharacterController';
 import { CollectibleState } from './systems/collectibles/CollectibleState';
@@ -30,6 +31,7 @@ import { EndingState, type EndingChoice } from './systems/ending/EndingState';
 import { InputSystem } from './systems/input/InputSystem';
 import { GamepadSystem, type InputDevice } from './systems/input/GamepadSystem';
 import { PuzzleState, type PuzzleId } from './systems/puzzles/PuzzleState';
+import { PhotoMode, type PhotoCameraBounds } from './systems/photo/PhotoMode';
 import {
   ObjectiveTracker,
   resolveTrackedObjective,
@@ -47,6 +49,11 @@ import {
   type GameSettings,
   type SaveData,
 } from './systems/save/SaveSystem';
+import {
+  incrementStatistic,
+  recordEnding,
+  type StatisticsSnapshot,
+} from './systems/statistics/Statistics';
 import {
   TutorialSystem,
   type TutorialDefinition,
@@ -231,6 +238,16 @@ async function startGame(): Promise<() => void> {
   let sanctuaryUnlockInProgress = false;
   let warpActive = false;
   let fanfareTimer: number | undefined;
+  let statistics: StatisticsSnapshot = structuredClone(bootSave.statistics);
+  let persist = (): void => undefined;
+  const achievements = new AchievementEngine(
+    bootSave.unlockedAchievementIds,
+    (definition) => {
+      overlay.showAchievement(definition);
+      audio.play('achievementSting');
+      persist();
+    },
+  );
 
   const getObjectiveProgress = (): ObjectiveProgress => ({
     puzzles: puzzles.getAll(),
@@ -339,12 +356,14 @@ async function startGame(): Promise<() => void> {
       tutorialFlags: tutorials.getFlags(),
       objectiveTracking: objectiveTracker.getSnapshot(),
       ending: { choice: ending.getChoice() ?? null },
+      unlockedAchievementIds: [...achievements.getUnlockedIds()],
+      statistics: structuredClone(statistics),
       playtimeSeconds,
       dayPhase,
     };
   };
 
-  const persist = (): void => {
+  persist = (): void => {
     if (sessionStarted) saveData(getSnapshot());
     else saveData({ ...loadSaveData(), settings: structuredClone(settings) });
   };
@@ -403,6 +422,11 @@ async function startGame(): Promise<() => void> {
       particles.unlockHalo(character.getPosition());
     }
     refreshCompassTargets();
+    achievements.handle({
+      type: 'count',
+      metric: 'abilities',
+      value: abilities.getAll().length,
+    });
     if (sessionStarted) persist();
   });
   collectibles.onCollect(({ id, count }) => {
@@ -418,6 +442,7 @@ async function startGame(): Promise<() => void> {
     lastShardPickupPlaytime = playtimeSeconds;
     audio.play('shardPickup', { streak: shardStreak });
     audio.play('shardTick');
+    achievements.handle({ type: 'count', metric: 'shards', value: count });
     refreshCompassTargets();
     if (sessionStarted) persist();
   });
@@ -435,6 +460,7 @@ async function startGame(): Promise<() => void> {
     const [x, y, z] = zone.sanctuary.position;
     audio.play('shrineFanfare');
     particles.sanctuaryFanfare({ x, y, z });
+    achievements.handle({ type: 'sanctuary', id });
     if (!settings.reducedMotion) {
       fanfareActive = true;
       controlsEnabled = false;
@@ -460,6 +486,8 @@ async function startGame(): Promise<() => void> {
     if (!ending.choose(choice)) return;
     audio.triggerEnding(choice);
     particles.triggerEnding(choice);
+    statistics = recordEnding(statistics, choice);
+    achievements.handle({ type: 'ending', choice });
     overlay.showEnding(choice, {
       shards: collectibles.count,
       steles: readSteleIds.size,
@@ -502,6 +530,11 @@ async function startGame(): Promise<() => void> {
         thirdPersonCamera.setSteleFocus(true, settings.reducedMotion);
         audio.play('steleOpen');
         readSteleIds.add(content.id);
+        achievements.handle({
+          type: 'count',
+          metric: 'steles',
+          value: readSteleIds.size,
+        });
         persist();
       }
       return;
@@ -535,6 +568,58 @@ async function startGame(): Promise<() => void> {
   };
   window.addEventListener('resize', resize);
   resize();
+
+  const photoBounds: PhotoCameraBounds = {
+    minX: Math.min(...WORLD_ZONES.map((zone) => zone.bounds.min[0])),
+    maxX: Math.max(...WORLD_ZONES.map((zone) => zone.bounds.max[0])),
+    minZ: Math.min(...WORLD_ZONES.map((zone) => zone.bounds.min[2])),
+    maxZ: Math.max(...WORLD_ZONES.map((zone) => zone.bounds.max[2])),
+  };
+  const photoMode = new PhotoMode(
+    camera,
+    renderer,
+    canvas,
+    photoBounds,
+    () => {
+      statistics = incrementStatistic(statistics, 'photoCount');
+      persist();
+    },
+  );
+  let photoLastFrame = performance.now();
+  let suppressPointerLockPause = false;
+  const enterPhotoMode = (): boolean => {
+    if (
+      photoMode.isActive ||
+      !sessionStarted ||
+      mapScreen.isOpen ||
+      fanfareActive ||
+      warpActive
+    ) {
+      return false;
+    }
+    controlsEnabled = false;
+    canvas.dataset.controls = 'locked';
+    loop.setPaused(true);
+    overlay.setActive(false);
+    overlay.hideToasts();
+    menu.open('none');
+    photoLastFrame = performance.now();
+    photoMode.enter();
+    void canvas.requestPointerLock().catch(() => undefined);
+    return true;
+  };
+  const exitPhotoMode = (): boolean => {
+    if (!photoMode.exit()) return false;
+    suppressPointerLockPause = true;
+    window.setTimeout(() => {
+      suppressPointerLockPause = false;
+    }, 0);
+    overlay.setActive(true);
+    loop.setPaused(false);
+    controlsEnabled = true;
+    canvas.dataset.controls = 'ready';
+    return true;
+  };
 
   const loop = new GameLoop({
     update: (fixedDeltaSeconds) => {
@@ -627,6 +712,11 @@ async function startGame(): Promise<() => void> {
       );
       if (sessionStarted) {
         playtimeSeconds = advancePlaytime(playtimeSeconds, fixedDeltaSeconds);
+        achievements.handle({
+          type: 'count',
+          metric: 'playtimeSeconds',
+          value: playtimeSeconds,
+        });
         applyDayPhase(advanceDayPhase(dayPhase, fixedDeltaSeconds));
       }
       collectibles.collectNearest(position, tuning.shardPickupRadius);
@@ -660,7 +750,35 @@ async function startGame(): Promise<() => void> {
     },
     render: () => {
       gamepad.update();
-      if (mapScreen.isOpen) {
+      if (photoMode.isActive) {
+        const now = performance.now();
+        const keyboardX =
+          Number(input.isHeld('KeyD')) - Number(input.isHeld('KeyA'));
+        const keyboardY =
+          Number(input.isHeld('KeyW')) - Number(input.isHeld('KeyS'));
+        const gamepadMovement = gamepad.getMovementAxes();
+        const movementX = keyboardX + gamepadMovement.x;
+        const movementY = keyboardY + gamepadMovement.y;
+        const movementLength = Math.hypot(movementX, movementY);
+        photoMode.update((now - photoLastFrame) / 1000, {
+          movement:
+            movementLength > 1
+              ? {
+                  x: movementX / movementLength,
+                  y: movementY / movementLength,
+                }
+              : { x: movementX, y: movementY },
+          look: gamepad.getLookAxes(),
+          pointer: input.consumePointerDelta(),
+          rise:
+            Number(input.isHeld('KeyE')) - Number(input.isHeld('KeyQ')),
+        });
+        photoLastFrame = now;
+        if (gamepad.wasActionPressed('jump')) photoMode.capture();
+        else if (gamepad.wasActionPressed('interact')) exitPhotoMode();
+        input.endFixedStep();
+        gamepad.endFixedStep();
+      } else if (mapScreen.isOpen) {
         if (gamepad.consumeSelectPressed()) closeMap();
         else {
           const axes = gamepad.getLookAxes();
@@ -728,6 +846,8 @@ async function startGame(): Promise<() => void> {
 
   const restoreSnapshot = (snapshot: SaveData): void => {
     activeTutorial = undefined;
+    achievements.restore(snapshot.unlockedAchievementIds);
+    statistics = structuredClone(snapshot.statistics);
     abilities.restore(snapshot.abilities);
     collectibles.restore(snapshot.collectedShardIds);
     puzzles.restore(snapshot.puzzles);
@@ -796,6 +916,8 @@ async function startGame(): Promise<() => void> {
 
   const performWarp = (anchor: WarpAnchor): void => {
     if (!isWarpUnlocked(anchor, puzzles.getAll()) || warpActive) return;
+    statistics = incrementStatistic(statistics, 'warpCount');
+    achievements.handle({ type: 'warp' });
     warpActive = true;
     controlsEnabled = false;
     canvas.dataset.controls = 'locked';
@@ -837,11 +959,23 @@ async function startGame(): Promise<() => void> {
     onMap: () => {
       openMap();
     },
+    onPhotoMode: enterPhotoMode,
     onMainMenu: () => {
       if (sessionStarted) persist();
       overlay.setActive(false);
       loop.setPaused(true);
     },
+    getExtrasData: () => ({
+      unlockedAchievementIds: achievements.getUnlockedIds(),
+      playtimeSeconds,
+      shardCount: sessionStarted
+        ? collectibles.count
+        : bootSave.collectedShardIds.length,
+      steleCount: sessionStarted
+        ? readSteleIds.size
+        : bootSave.readSteleIds.length,
+      statistics,
+    }),
     getWarpEntries: () =>
       WARP_ANCHORS.map((anchor) => ({
         anchor,
@@ -867,6 +1001,29 @@ async function startGame(): Promise<() => void> {
       openMenu('pause');
     }
   };
+  const onPhotoHotkey = (event: KeyboardEvent): void => {
+    if (event.repeat) return;
+    if (photoMode.isActive) {
+      if (event.code === 'Enter') {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        photoMode.capture();
+      } else if (event.code === 'KeyP' || event.code === 'Escape') {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        exitPhotoMode();
+      }
+      return;
+    }
+    if (
+      event.code === 'KeyP' &&
+      (menu.name === 'none' || menu.name === 'pause')
+    ) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      enterPhotoMode();
+    }
+  };
   const onMapHotkey = (event: KeyboardEvent): void => {
     if (
       event.code === 'KeyM' &&
@@ -883,6 +1040,8 @@ async function startGame(): Promise<() => void> {
   const onPointerLockChange = (): void => {
     if (
       document.pointerLockElement === null &&
+      !suppressPointerLockPause &&
+      !photoMode.isActive &&
       menu.name === 'none' &&
       !mapScreen.isOpen &&
       sessionStarted &&
@@ -892,6 +1051,7 @@ async function startGame(): Promise<() => void> {
       openMenu('pause');
     }
   };
+  window.addEventListener('keydown', onPhotoHotkey);
   window.addEventListener('keydown', onMapHotkey);
   window.addEventListener('keydown', onEscape);
   document.addEventListener('pointerlockchange', onPointerLockChange);
@@ -969,6 +1129,8 @@ async function startGame(): Promise<() => void> {
         getSaveData: () =>
           structuredClone(sessionStarted ? getSnapshot() : loadSaveData()),
         getAudioState: () => audio.getState(),
+        getAchievements: () => achievements.getUnlockedIds(),
+        enterPhotoMode: () => enterPhotoMode(),
         setLanguage: (language: 'zh-TW' | 'en') => {
           applySettings({ ...settings, language });
           menu.setSettings(settings);
@@ -1003,6 +1165,7 @@ async function startGame(): Promise<() => void> {
     window.clearInterval(autoSaveInterval);
     window.removeEventListener('keydown', onMapHotkey);
     window.removeEventListener('keydown', onEscape);
+    window.removeEventListener('keydown', onPhotoHotkey);
     document.removeEventListener('pointerlockchange', onPointerLockChange);
     input.dispose();
     menu.dispose();
@@ -1014,6 +1177,7 @@ async function startGame(): Promise<() => void> {
     audio.dispose();
     compass.dispose();
     mapScreen.dispose();
+    photoMode.dispose();
     overlay.dispose();
     sky.dispose();
     window.removeEventListener('resize', resize);

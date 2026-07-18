@@ -8,6 +8,7 @@ import type {
 } from '../systems/tutorial/TutorialSystem';
 import type { Ability } from '../world/map/types';
 import { getVisibleCharacterCount } from '../systems/narrative/typewriter';
+import type { AchievementDefinition } from '../systems/achievements/definitions';
 import { getLanguage, onLanguageChange, t } from './i18n';
 
 const ABILITIES: readonly Ability[] = ['dash', 'doubleJump', 'glide'];
@@ -65,6 +66,7 @@ export class GameplayOverlay {
   private readonly message = document.createElement('div');
   private readonly fps = document.createElement('div');
   private readonly toast = document.createElement('div');
+  private readonly achievementToast = document.createElement('div');
   private readonly opening = document.createElement('div');
   private readonly openingText = document.createElement('span');
   private readonly warpTransition = document.createElement('div');
@@ -75,6 +77,7 @@ export class GameplayOverlay {
   private hideTimer: number | undefined;
   private messageTimer: number | undefined;
   private toastTimer: number | undefined;
+  private achievementToastTimer: number | undefined;
   private fpsVisible = false;
   private fpsFrameCount = 0;
   private fpsWindowStarted = 0;
@@ -116,6 +119,10 @@ export class GameplayOverlay {
     this.toast.className = 'connection-toast';
     this.toast.setAttribute('role', 'status');
     this.toast.hidden = true;
+    this.achievementToast.className = 'achievement-toast';
+    this.achievementToast.setAttribute('role', 'status');
+    this.achievementToast.setAttribute('aria-live', 'polite');
+    this.achievementToast.hidden = true;
     this.stele.className = 'stele-overlay';
     this.ending.className = 'ending-overlay';
     this.stele.hidden = true;
@@ -139,6 +146,7 @@ export class GameplayOverlay {
     );
     document.body.append(this.root);
     document.body.append(this.toast);
+    document.body.append(this.achievementToast);
     this.renderHud();
     this.unsubscribeLanguage = onLanguageChange(() => {
       this.renderHud();
@@ -236,6 +244,33 @@ export class GameplayOverlay {
       2400,
     );
     this.showHudEvent();
+  }
+
+  public showAchievement(definition: AchievementDefinition): void {
+    window.clearTimeout(this.achievementToastTimer);
+    this.achievementToast.replaceChildren();
+    const label = document.createElement('small');
+    label.textContent = t('achievements.unlocked');
+    const title = document.createElement('strong');
+    title.textContent = t(definition.titleKey);
+    this.achievementToast.append(label, title);
+    this.achievementToast.hidden = false;
+    this.achievementToast.classList.remove('is-visible');
+    void this.achievementToast.offsetWidth;
+    this.achievementToast.classList.add('is-visible');
+    this.achievementToastTimer = window.setTimeout(() => {
+      this.achievementToast.classList.remove('is-visible');
+      this.achievementToast.hidden = true;
+    }, 3200);
+  }
+
+  public hideToasts(): void {
+    window.clearTimeout(this.toastTimer);
+    window.clearTimeout(this.achievementToastTimer);
+    this.toast.classList.remove('is-visible');
+    this.toast.hidden = true;
+    this.achievementToast.classList.remove('is-visible');
+    this.achievementToast.hidden = true;
   }
 
   public showTutorial(definition: TutorialDefinition): void {
@@ -412,12 +447,14 @@ export class GameplayOverlay {
     window.clearTimeout(this.hideTimer);
     window.clearTimeout(this.messageTimer);
     window.clearTimeout(this.toastTimer);
+    window.clearTimeout(this.achievementToastTimer);
     window.clearTimeout(this.openingTimer);
     window.cancelAnimationFrame(this.steleFrame ?? 0);
     for (const timer of this.warpTimers) window.clearTimeout(timer);
     this.unsubscribeLanguage();
     this.root.remove();
     this.toast.remove();
+    this.achievementToast.remove();
   }
 
   private renderHud(flash?: Ability): void {

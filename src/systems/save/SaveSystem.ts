@@ -16,8 +16,12 @@ import {
   createDefaultObjectiveTracking,
   type ObjectiveTrackingSnapshot,
 } from '../objectives/ObjectiveTracker';
+import {
+  createDefaultStatistics,
+  type StatisticsSnapshot,
+} from '../statistics/Statistics';
 
-export const SAVE_VERSION = 6;
+export const SAVE_VERSION = 7;
 export const SAVE_STORAGE_KEY = 'neon-echo-save';
 
 export type SubtitleSize = 'small' | 'medium' | 'large';
@@ -57,6 +61,8 @@ export interface SaveData {
   tutorialFlags: TutorialFlags;
   objectiveTracking: ObjectiveTrackingSnapshot;
   ending: { choice: EndingChoice | null };
+  unlockedAchievementIds: string[];
+  statistics: StatisticsSnapshot;
   playtimeSeconds: number;
   dayPhase: number;
 }
@@ -122,6 +128,8 @@ export function createDefaultSaveData(): SaveData {
     tutorialFlags: createDefaultTutorialFlags(),
     objectiveTracking: createDefaultObjectiveTracking(),
     ending: { choice: null },
+    unlockedAchievementIds: [],
+    statistics: createDefaultStatistics(),
     playtimeSeconds: 0,
     dayPhase: 0,
   };
@@ -217,6 +225,21 @@ function isSaveData(value: unknown): value is SaveData {
   ) {
     return false;
   }
+  if (
+    !Array.isArray(value.unlockedAchievementIds) ||
+    !value.unlockedAchievementIds.every((id) => typeof id === 'string') ||
+    !isObject(value.statistics) ||
+    !Number.isInteger(value.statistics.warpCount) ||
+    (value.statistics.warpCount as number) < 0 ||
+    !Number.isInteger(value.statistics.photoCount) ||
+    (value.statistics.photoCount as number) < 0 ||
+    !Array.isArray(value.statistics.endings) ||
+    !value.statistics.endings.every(
+      (choice) => choice === 'awaken' || choice === 'rest',
+    )
+  ) {
+    return false;
+  }
   return (
     isFiniteNumber(value.playtimeSeconds) &&
     value.playtimeSeconds >= 0 &&
@@ -239,6 +262,7 @@ export function migrateSaveData(value: unknown): SaveData | undefined {
       value.version !== 3 &&
       value.version !== 4 &&
       value.version !== 5 &&
+      value.version !== 6 &&
       value.version !== SAVE_VERSION)
   ) {
     return undefined;
@@ -277,6 +301,8 @@ export function migrateSaveData(value: unknown): SaveData | undefined {
     tutorialFlags: value.tutorialFlags ?? createDefaultTutorialFlags(),
     objectiveTracking:
       value.objectiveTracking ?? createDefaultObjectiveTracking(),
+    unlockedAchievementIds: value.unlockedAchievementIds ?? [],
+    statistics: value.statistics ?? createDefaultStatistics(),
     playtimeSeconds: value.playtimeSeconds ?? 0,
     dayPhase: value.dayPhase ?? 0,
   };

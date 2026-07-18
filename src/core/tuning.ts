@@ -24,6 +24,9 @@ export interface Tuning {
   cameraFieldOfView: number;
   cameraNearPlane: number;
   cameraFarPlane: number;
+  photoCameraMoveSpeed: number;
+  photoCameraLookSpeed: number;
+  photoCameraWheelSpeed: number;
   cameraInitialPitch: number;
   cameraPitchMin: number;
   cameraPitchMax: number;
@@ -87,6 +90,9 @@ export const tuning: Tuning = {
   cameraFieldOfView: 55,
   cameraNearPlane: 0.1,
   cameraFarPlane: 120,
+  photoCameraMoveSpeed: 24,
+  photoCameraLookSpeed: 1.8,
+  photoCameraWheelSpeed: 4,
   cameraInitialPitch: 0.35,
   cameraPitchMin: -0.35,
   cameraPitchMax: 1.05,
