@@ -39,13 +39,16 @@ import {
   type TutorialDefinition,
 } from './systems/tutorial/TutorialSystem';
 import { DevTuningPanel } from './ui/DevTuningPanel';
+import { CompassBar, type CompassTarget } from './ui/CompassBar';
 import { GameplayOverlay } from './ui/GameplayOverlay';
 import { setLanguage, t } from './ui/i18n';
 import { MenuSystem, type MenuName } from './ui/MenuSystem';
+import { WARP_ANCHORS } from './systems/warp/anchors';
+import { isWarpUnlocked, type WarpAnchor } from './systems/warp/WarpSystem';
 import { GameplayWorld } from './world/GameplayWorld';
 import { WorldBuilder } from './world/WorldBuilder';
 import { WORLD_ZONES } from './world/map/graph';
-import type { Ability } from './world/map/types';
+import type { Ability, ZoneId } from './world/map/types';
 import './style.css';
 
 async function initializeRapier(): Promise<void> {
@@ -93,6 +96,19 @@ function normalizePuzzleId(id: string): PuzzleId | undefined {
   return aliases[id];
 }
 
+const PUZZLE_ABILITY: Readonly<Record<PuzzleId, Ability>> = {
+  pulseTrack: 'dash',
+  lightBridge: 'doubleJump',
+  windWell: 'glide',
+};
+
+const LANDMARK_ICONS: Readonly<Record<string, string>> = {
+  skylift: '△',
+  spire: '┃',
+  ring: '◯',
+  chasm: '◇',
+};
+
 async function startGame(): Promise<() => void> {
   const canvas = document.querySelector<HTMLCanvasElement>('#game-canvas');
   const loading = document.querySelector<HTMLElement>('#loading');
@@ -136,14 +152,17 @@ async function startGame(): Promise<() => void> {
   audio.bindGestureUnlock(window);
   const particles = createParticleSystem(scene, settings.reducedMotion);
   const worldBuilder = new WorldBuilder(scene, physicsWorld);
+  let handlePuzzleProgress = (_id: PuzzleId, completed: boolean): void =>
+    audio.play(completed ? 'puzzleComplete' : 'puzzleProgress');
   const gameplayWorld = new GameplayWorld(scene, physicsWorld, puzzles, {
-    onPuzzleProgress: (_id, completed) =>
-      audio.play(completed ? 'puzzleComplete' : 'puzzleProgress'),
+    onPuzzleProgress: (id, completed) => handlePuzzleProgress(id, completed),
   });
   const character = new CharacterController(physicsWorld, scene, abilities);
   const tutorials = new TutorialSystem();
   const input = new InputSystem(canvas, settings.bindings);
   const overlay = new GameplayOverlay();
+  const compass = new CompassBar();
+  overlay.attachHudElement(compass.element);
   overlay.setSubtitleSize(settings.subtitleSize);
   const thirdPersonCamera = new ThirdPersonCamera(physicsWorld, character);
   thirdPersonCamera.setAutoBehindEnabled(settings.autoCameraBehind);
@@ -166,6 +185,70 @@ async function startGame(): Promise<() => void> {
   let playtimeSeconds = bootSave.playtimeSeconds;
   let shardStreak = 0;
   let lastShardPickupPlaytime = Number.NEGATIVE_INFINITY;
+  let discoveredZoneIds = new Set<ZoneId>();
+  let fanfareActive = false;
+  let sanctuaryUnlockInProgress = false;
+  let warpActive = false;
+  let fanfareTimer: number | undefined;
+
+  const refreshCompassTargets = (): void => {
+    const targets: CompassTarget[] = WORLD_ZONES.flatMap((zone) => {
+      if (!zone.landmark) return [];
+      const [x, y, z] = zone.landmark.position;
+      return [
+        {
+          id: zone.landmark.id,
+          labelKey: `compass.landmark.${zone.id}`,
+          kind: 'landmark' as const,
+          icon: LANDMARK_ICONS[zone.id] ?? '◇',
+          position: { x, y, z },
+        },
+      ];
+    });
+    for (const zone of WORLD_ZONES) {
+      if (!zone.sanctuary || !discoveredZoneIds.has(zone.id)) continue;
+      const [x, y, z] = zone.sanctuary.position;
+      targets.push({
+        id: `compass-${zone.sanctuary.id}`,
+        labelKey: `compass.sanctuary.${zone.id}`,
+        kind: 'sanctuary',
+        icon: '✦',
+        position: { x, y, z },
+      });
+    }
+    if (abilities.getAll().length === 3) {
+      const core = WORLD_ZONES.find((zone) => zone.id === 'chasm')?.landmark;
+      if (core) {
+        const [x, y, z] = core.position;
+        targets.push({
+          id: 'compass-north-core',
+          labelKey: 'compass.core',
+          kind: 'core',
+          icon: '◈',
+          position: { x, y, z },
+        });
+      }
+    }
+    compass.setTargets(targets);
+  };
+
+  const discoverZoneAt = (
+    position: Readonly<{ x: number; z: number }>,
+  ): void => {
+    const discovered = WORLD_ZONES.find((zone) => {
+      if (zone.id === 'plaza' || discoveredZoneIds.has(zone.id)) return false;
+      const centerX = (zone.bounds.min[0] + zone.bounds.max[0]) / 2;
+      const centerZ = (zone.bounds.min[2] + zone.bounds.max[2]) / 2;
+      return (
+        Math.hypot(position.x - centerX, position.z - centerZ) <=
+        zone.discoveryRadius
+      );
+    });
+    if (!discovered) return;
+    discoveredZoneIds.add(discovered.id);
+    refreshCompassTargets();
+    if (sessionStarted) persist();
+  };
 
   const getSnapshot = (): SaveData => {
     const position = character.getPosition();
@@ -174,6 +257,7 @@ async function startGame(): Promise<() => void> {
       abilities: [...abilities.getAll()],
       collectedShardIds: [...collectibles.getAll()],
       readSteleIds: [...readSteleIds],
+      discoveredZoneIds: [...discoveredZoneIds],
       puzzles: puzzles.getAll(),
       playerPosition: { x: position.x, y: position.y, z: position.z },
       settings: structuredClone(settings),
@@ -190,8 +274,11 @@ async function startGame(): Promise<() => void> {
 
   abilities.onUnlock(({ ability }) => {
     overlay.showUnlock(ability);
-    audio.play('abilityUnlock');
-    particles.unlockHalo(character.getPosition());
+    if (!sanctuaryUnlockInProgress) {
+      audio.play('abilityUnlock');
+      particles.unlockHalo(character.getPosition());
+    }
+    refreshCompassTargets();
     if (sessionStarted) persist();
   });
   collectibles.onCollect(({ id, count }) => {
@@ -206,8 +293,43 @@ async function startGame(): Promise<() => void> {
       playtimeSeconds - lastShardPickupPlaytime <= 4 ? shardStreak + 1 : 1;
     lastShardPickupPlaytime = playtimeSeconds;
     audio.play('shardPickup', { streak: shardStreak });
+    audio.play('shardTick');
     if (sessionStarted) persist();
   });
+
+  const completeSanctuary = (id: PuzzleId): void => {
+    if (puzzles.get(id).altarActivated) return;
+    const zone = WORLD_ZONES.find(
+      (candidate) => candidate.sanctuary?.grants === PUZZLE_ABILITY[id],
+    );
+    if (!zone?.sanctuary) return;
+    sanctuaryUnlockInProgress = true;
+    const activated = puzzles.activateAltar(id);
+    sanctuaryUnlockInProgress = false;
+    if (!activated) return;
+    const [x, y, z] = zone.sanctuary.position;
+    audio.play('shrineFanfare');
+    particles.sanctuaryFanfare({ x, y, z });
+    if (!settings.reducedMotion) {
+      fanfareActive = true;
+      controlsEnabled = false;
+      canvas.dataset.controls = 'locked';
+      window.clearTimeout(fanfareTimer);
+      fanfareTimer = window.setTimeout(() => {
+        fanfareActive = false;
+        if (!warpActive && sessionStarted) {
+          controlsEnabled = true;
+          canvas.dataset.controls = 'ready';
+        }
+      }, 1200);
+    }
+    persist();
+  };
+
+  handlePuzzleProgress = (id, completed): void => {
+    if (completed) completeSanctuary(id);
+    else audio.play('puzzleProgress');
+  };
 
   const chooseEnding = (choice: EndingChoice): void => {
     if (!ending.choose(choice)) return;
@@ -313,6 +435,7 @@ async function startGame(): Promise<() => void> {
       physicsWorld.step();
       character.syncVisual();
       const position = character.getPosition();
+      discoverZoneAt(position);
       const landingSpeed = character.consumeLandingSpeed();
       if (landingSpeed !== undefined) {
         thirdPersonCamera.triggerLanding(landingSpeed);
@@ -350,6 +473,7 @@ async function startGame(): Promise<() => void> {
         horizontalVelocity: character.getHorizontalVelocity(),
         sprinting: locomotion.dashStarted || locomotion.state.dashRemaining > 0,
       });
+      compass.update(position, thirdPersonCamera.getCompassHeading());
       worldBuilder.update(fixedDeltaSeconds);
       particles.update(fixedDeltaSeconds);
       audio.update(fixedDeltaSeconds, position);
@@ -371,6 +495,7 @@ async function startGame(): Promise<() => void> {
     particles.setReducedMotion(settings.reducedMotion);
     character.setReducedMotion(settings.reducedMotion);
     worldBuilder.setReducedMotion(settings.reducedMotion);
+    compass.setReducedMotion(settings.reducedMotion);
     thirdPersonCamera.setAutoBehindEnabled(settings.autoCameraBehind);
     tuning.cameraSensitivity =
       DEFAULT_CAMERA_SENSITIVITY * settings.mouseSensitivity;
@@ -387,6 +512,7 @@ async function startGame(): Promise<() => void> {
     ending.restore(snapshot.ending.choice);
     playtimeSeconds = snapshot.playtimeSeconds;
     readSteleIds = new Set(snapshot.readSteleIds);
+    discoveredZoneIds = new Set(snapshot.discoveredZoneIds);
     worldBuilder.setCollectedShards(snapshot.collectedShardIds);
     character.teleport(
       snapshot.playerPosition.x,
@@ -396,6 +522,7 @@ async function startGame(): Promise<() => void> {
     thirdPersonCamera.update(1 / 60);
     overlay.setAbilities(snapshot.abilities);
     overlay.setShardCount(snapshot.collectedShardIds.length);
+    refreshCompassTargets();
     if (snapshot.ending.choice) particles.triggerEnding(snapshot.ending.choice);
     applySettings(snapshot.settings);
     lastPuzzleSignature = JSON.stringify(puzzles.getAll());
@@ -434,10 +561,34 @@ async function startGame(): Promise<() => void> {
       overlay.setActive(true);
       loop.setPaused(false);
     } else {
+      controlsEnabled = false;
+      canvas.dataset.controls = 'locked';
       loop.setPaused(true);
       overlay.setActive(false);
     }
     menu.open(name);
+  };
+
+  const performWarp = (anchor: WarpAnchor): void => {
+    if (!isWarpUnlocked(anchor, puzzles.getAll()) || warpActive) return;
+    warpActive = true;
+    controlsEnabled = false;
+    canvas.dataset.controls = 'locked';
+    openMenu('none');
+    void overlay
+      .playWarp(settings.reducedMotion, () => {
+        const [x, y, z] = anchor.warpPoint;
+        character.teleport(x, y, z);
+        thirdPersonCamera.update(1 / 60);
+        persist();
+      })
+      .then(() => {
+        warpActive = false;
+        if (!fanfareActive) {
+          controlsEnabled = true;
+          canvas.dataset.controls = 'ready';
+        }
+      });
   };
 
   const menu = new MenuSystem(settings, {
@@ -447,18 +598,29 @@ async function startGame(): Promise<() => void> {
       else {
         overlay.setActive(true);
         loop.setPaused(false);
+        controlsEnabled = true;
+        canvas.dataset.controls = 'ready';
       }
     },
     onNewGame: startNewGame,
     onResume: () => {
       overlay.setActive(true);
       loop.setPaused(false);
+      controlsEnabled = true;
+      canvas.dataset.controls = 'ready';
     },
     onMainMenu: () => {
       if (sessionStarted) persist();
       overlay.setActive(false);
       loop.setPaused(true);
     },
+    getWarpEntries: () =>
+      WARP_ANCHORS.map((anchor) => ({
+        anchor,
+        unlocked: isWarpUnlocked(anchor, puzzles.getAll()),
+      })),
+    onWarp: performWarp,
+    onUiSound: (event) => audio.play(event),
     onSettingsChange: (nextSettings) => {
       applySettings(nextSettings);
       persist();
@@ -466,7 +628,13 @@ async function startGame(): Promise<() => void> {
   });
 
   const onEscape = (event: KeyboardEvent): void => {
-    if (event.code === 'Escape' && menu.name === 'none' && sessionStarted) {
+    if (
+      event.code === 'Escape' &&
+      menu.name === 'none' &&
+      sessionStarted &&
+      !fanfareActive &&
+      !warpActive
+    ) {
       openMenu('pause');
     }
   };
@@ -474,7 +642,9 @@ async function startGame(): Promise<() => void> {
     if (
       document.pointerLockElement === null &&
       menu.name === 'none' &&
-      sessionStarted
+      sessionStarted &&
+      !fanfareActive &&
+      !warpActive
     ) {
       openMenu('pause');
     }
@@ -508,6 +678,12 @@ async function startGame(): Promise<() => void> {
         getPuzzleState: (id: string) => {
           const puzzleId = normalizePuzzleId(id);
           return puzzleId ? puzzles.get(puzzleId) : undefined;
+        },
+        debugCompletePuzzle: (id: string) => {
+          const puzzleId = normalizePuzzleId(id);
+          if (!puzzleId || !puzzles.complete(puzzleId)) return false;
+          handlePuzzleProgress(puzzleId, true);
+          return true;
         },
         teleport: (x: number, y: number, z: number) => {
           character.teleport(x, y, z);
@@ -550,6 +726,7 @@ async function startGame(): Promise<() => void> {
 
   return () => {
     loop.stop();
+    window.clearTimeout(fanfareTimer);
     window.clearInterval(autoSaveInterval);
     window.removeEventListener('keydown', onEscape);
     document.removeEventListener('pointerlockchange', onPointerLockChange);
@@ -561,6 +738,7 @@ async function startGame(): Promise<() => void> {
     worldBuilder.dispose();
     particles.dispose();
     audio.dispose();
+    compass.dispose();
     overlay.dispose();
     sky.dispose();
     window.removeEventListener('resize', resize);

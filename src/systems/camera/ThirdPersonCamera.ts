@@ -110,6 +110,10 @@ export class ThirdPersonCamera {
     };
   }
 
+  public getCompassHeading(): number {
+    return Math.atan2(-Math.sin(this.yaw), -Math.cos(this.yaw));
+  }
+
   public update(
     deltaSeconds: number,
     motion: CameraMotionState = {

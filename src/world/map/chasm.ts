@@ -5,6 +5,7 @@ export const CHASM: Zone = {
   name: 'North · Lumen Chasm',
   entryRequires: ['dash', 'doubleJump', 'glide'],
   bounds: { min: [-110, -28, 70], max: [110, 110, 410] },
+  discoveryRadius: 170,
   platforms: [
     {
       id: 'chasm-bridge',

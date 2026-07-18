@@ -5,6 +5,8 @@ export const SKYLIFT: Zone = {
   name: 'South · Broken Sky Lift',
   entryRequires: [],
   bounds: { min: [-110, -8, -410], max: [110, 130, -70] },
+  discoveryRadius: 170,
+  warpPoint: [0, 4, -350],
   platforms: [
     {
       id: 'skylift-causeway',

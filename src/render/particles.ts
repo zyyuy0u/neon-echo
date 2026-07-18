@@ -22,6 +22,7 @@ const BURST_CAPACITY = 48;
 const HALO_CAPACITY = 6;
 const UPDRAFT_STREAMS = 18;
 const LANDING_DUST_CAPACITY = 24;
+const FANFARE_CAPACITY = 18;
 
 export interface ParticleDensity {
   dust: number;
@@ -62,6 +63,12 @@ interface LandingDustParticle {
   maximumLife: number;
 }
 
+interface FanfareParticle {
+  position: Vector3;
+  life: number;
+  maximumLife: number;
+}
+
 export interface ParticleSystem {
   update: (deltaSeconds: number) => void;
   setReducedMotion: (reducedMotion: boolean) => void;
@@ -70,6 +77,9 @@ export interface ParticleSystem {
   landingDust: (
     position: Readonly<{ x: number; y: number; z: number }>,
     speed: number,
+  ) => void;
+  sanctuaryFanfare: (
+    position: Readonly<{ x: number; y: number; z: number }>,
   ) => void;
   triggerEnding: (choice: EndingChoice) => void;
   dispose: () => void;
@@ -178,6 +188,27 @@ export function createParticleSystem(
   root.add(landingDust);
   const landingDustParticles: LandingDustParticle[] = [];
 
+  const fanfareGeometry = new OctahedronGeometry(0.22, 0);
+  const fanfareMaterial = new MeshBasicMaterial({
+    color: PALETTE.warningYellow,
+    transparent: true,
+    opacity: 0.82,
+    blending: AdditiveBlending,
+    depthWrite: false,
+    toneMapped: false,
+  });
+  materials.add(fanfareMaterial);
+  const fanfare = new InstancedMesh(
+    fanfareGeometry,
+    fanfareMaterial,
+    FANFARE_CAPACITY,
+  );
+  fanfare.name = 'sanctuary-fanfare-pillar';
+  fanfare.instanceMatrix.setUsage(DynamicDrawUsage);
+  fanfare.frustumCulled = false;
+  root.add(fanfare);
+  const fanfareParticles: FanfareParticle[] = [];
+
   const streamGeometry = new CylinderGeometry(0.045, 0.045, 3.5, 5);
   const streamMaterial = new MeshBasicMaterial({
     color: PALETTE.neonCyan,
@@ -228,6 +259,7 @@ export function createParticleSystem(
   scene.add(root);
   let elapsedSeconds = 0;
   let density = getParticleDensity(reducedMotion);
+  let motionReduced = reducedMotion;
   let endingChoice: EndingChoice | undefined;
   let endingElapsed = 0;
 
@@ -336,6 +368,26 @@ export function createParticleSystem(
     landingDust.instanceMatrix.needsUpdate = true;
   };
 
+  const updateFanfare = (deltaSeconds: number): void => {
+    for (let index = fanfareParticles.length - 1; index >= 0; index -= 1) {
+      const particle = fanfareParticles[index];
+      if (!particle) continue;
+      particle.life -= deltaSeconds;
+      particle.position.y += deltaSeconds * (5 + (index % 3));
+      if (particle.life <= 0) fanfareParticles.splice(index, 1);
+    }
+    fanfare.count = fanfareParticles.length;
+    fanfareParticles.forEach((particle, index) => {
+      const life = particle.life / particle.maximumLife;
+      dummy.position.copy(particle.position);
+      dummy.rotation.set(elapsedSeconds * 2, index, elapsedSeconds * 1.4);
+      dummy.scale.setScalar(0.5 + life * 1.2);
+      dummy.updateMatrix();
+      fanfare.setMatrixAt(index, dummy.matrix);
+    });
+    fanfare.instanceMatrix.needsUpdate = true;
+  };
+
   const updateEndingLights = (deltaSeconds: number): void => {
     if (endingChoice) endingElapsed += deltaSeconds;
     lightPositions.forEach((position, index) => {
@@ -366,6 +418,7 @@ export function createParticleSystem(
   bursts.count = 0;
   halos.count = 0;
   landingDust.count = 0;
+  fanfare.count = 0;
   updateEndingLights(0);
 
   return {
@@ -376,9 +429,11 @@ export function createParticleSystem(
       updateBursts(deltaSeconds);
       updateHalos(deltaSeconds);
       updateLandingDust(deltaSeconds);
+      updateFanfare(deltaSeconds);
       updateEndingLights(deltaSeconds);
     },
     setReducedMotion: (nextReducedMotion) => {
+      motionReduced = nextReducedMotion;
       density = getParticleDensity(nextReducedMotion);
       if (burstParticles.length > density.pickupBurst) {
         burstParticles.length = density.pickupBurst;
@@ -389,6 +444,7 @@ export function createParticleSystem(
       if (landingDustParticles.length > density.landingDust) {
         landingDustParticles.length = density.landingDust;
       }
+      if (nextReducedMotion) fanfareParticles.length = 0;
     },
     burstShard: (position) => {
       burstParticles.length = 0;
@@ -440,6 +496,22 @@ export function createParticleSystem(
         });
       }
     },
+    sanctuaryFanfare: (position) => {
+      fanfareParticles.length = 0;
+      if (motionReduced) return;
+      for (let index = 0; index < FANFARE_CAPACITY; index += 1) {
+        const angle = (index / FANFARE_CAPACITY) * Math.PI * 2;
+        fanfareParticles.push({
+          position: new Vector3(
+            position.x + Math.cos(angle) * (1.2 + (index % 3) * 0.7),
+            position.y + (index % 6) * 0.8,
+            position.z + Math.sin(angle) * (1.2 + (index % 3) * 0.7),
+          ),
+          life: 1.2,
+          maximumLife: 1.2,
+        });
+      }
+    },
     triggerEnding: (choice) => {
       endingChoice = choice;
       endingElapsed = 0;
@@ -453,6 +525,7 @@ export function createParticleSystem(
       burstGeometry.dispose();
       haloGeometry.dispose();
       landingDustGeometry.dispose();
+      fanfareGeometry.dispose();
       streamGeometry.dispose();
       endingLightGeometry.dispose();
       for (const material of materials) material.dispose();

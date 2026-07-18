@@ -1,4 +1,4 @@
-import type { Ability } from '../../world/map/types';
+import type { Ability, ZoneId } from '../../world/map/types';
 import {
   DEFAULT_BINDINGS,
   INPUT_ACTIONS,
@@ -13,7 +13,7 @@ import {
   type TutorialFlags,
 } from '../tutorial/TutorialSystem';
 
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
 export const SAVE_STORAGE_KEY = 'neon-echo-save';
 
 export type SubtitleSize = 'small' | 'medium' | 'large';
@@ -39,6 +39,7 @@ export interface SaveData {
   abilities: Ability[];
   collectedShardIds: string[];
   readSteleIds: string[];
+  discoveredZoneIds: ZoneId[];
   puzzles: Record<PuzzleId, PuzzleSnapshot>;
   playerPosition: SavedPosition;
   settings: GameSettings;
@@ -53,6 +54,13 @@ const PUZZLE_IDS: readonly PuzzleId[] = [
   'windWell',
 ];
 const ABILITIES: readonly Ability[] = ['dash', 'doubleJump', 'glide'];
+const ZONE_IDS: readonly ZoneId[] = [
+  'plaza',
+  'skylift',
+  'spire',
+  'ring',
+  'chasm',
+];
 
 export function createDefaultSettings(): GameSettings {
   return {
@@ -72,6 +80,7 @@ export function createDefaultSaveData(): SaveData {
     abilities: [],
     collectedShardIds: [],
     readSteleIds: [],
+    discoveredZoneIds: [],
     puzzles: {
       pulseTrack: {
         id: 'pulseTrack',
@@ -115,7 +124,9 @@ function isSaveData(value: unknown): value is SaveData {
     !Array.isArray(value.collectedShardIds) ||
     !value.collectedShardIds.every((id) => typeof id === 'string') ||
     !Array.isArray(value.readSteleIds) ||
-    !value.readSteleIds.every((id) => typeof id === 'string')
+    !value.readSteleIds.every((id) => typeof id === 'string') ||
+    !Array.isArray(value.discoveredZoneIds) ||
+    !value.discoveredZoneIds.every((id) => ZONE_IDS.includes(id as ZoneId))
   ) {
     return false;
   }
@@ -178,7 +189,9 @@ function isSaveData(value: unknown): value is SaveData {
 export function migrateSaveData(value: unknown): SaveData | undefined {
   if (
     !isObject(value) ||
-    (value.version !== 1 && value.version !== SAVE_VERSION)
+    (value.version !== 1 &&
+      value.version !== 2 &&
+      value.version !== SAVE_VERSION)
   ) {
     return undefined;
   }
@@ -192,6 +205,7 @@ export function migrateSaveData(value: unknown): SaveData | undefined {
     ...value,
     version: SAVE_VERSION,
     settings,
+    discoveredZoneIds: value.discoveredZoneIds ?? [],
     tutorialFlags: value.tutorialFlags ?? createDefaultTutorialFlags(),
     playtimeSeconds: value.playtimeSeconds ?? 0,
   };

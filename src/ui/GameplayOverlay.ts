@@ -61,6 +61,7 @@ export class GameplayOverlay {
   private readonly message = document.createElement('div');
   private readonly opening = document.createElement('div');
   private readonly openingText = document.createElement('span');
+  private readonly warpTransition = document.createElement('div');
   private readonly stele = document.createElement('section');
   private readonly ending = document.createElement('section');
   private readonly unlocked = new Set<Ability>();
@@ -68,6 +69,7 @@ export class GameplayOverlay {
   private hideTimer: number | undefined;
   private messageTimer: number | undefined;
   private openingTimer: number | undefined;
+  private warpTimers: number[] = [];
   private currentStele: SteleContent | undefined;
   private subtitleSize: SubtitleSize = 'medium';
   private readonly unsubscribeLanguage: () => void;
@@ -90,6 +92,9 @@ export class GameplayOverlay {
     this.opening.hidden = true;
     this.opening.setAttribute('role', 'status');
     this.opening.append(this.openingText);
+    this.warpTransition.className = 'warp-transition';
+    this.warpTransition.hidden = true;
+    this.warpTransition.setAttribute('aria-hidden', 'true');
     this.hud.append(this.abilityList, this.shardCounter);
     this.root.append(
       this.hud,
@@ -97,6 +102,7 @@ export class GameplayOverlay {
       this.stele,
       this.ending,
       this.opening,
+      this.warpTransition,
     );
     document.body.append(this.root);
     this.renderHud();
@@ -115,6 +121,10 @@ export class GameplayOverlay {
     this.unlocked.clear();
     for (const ability of abilities) this.unlocked.add(ability);
     this.renderHud();
+  }
+
+  public attachHudElement(element: HTMLElement): void {
+    this.hud.append(element);
   }
 
   public setShardCount(count: number, animate = false): void {
@@ -184,6 +194,30 @@ export class GameplayOverlay {
     this.opening.hidden = true;
     this.opening.classList.remove('is-playing');
     return true;
+  }
+
+  public playWarp(
+    reducedMotion: boolean,
+    onMidpoint: () => void,
+  ): Promise<void> {
+    for (const timer of this.warpTimers) window.clearTimeout(timer);
+    const duration = reducedMotion ? 200 : 800;
+    this.warpTransition.hidden = false;
+    this.warpTransition.classList.toggle('is-reduced', reducedMotion);
+    this.warpTransition.classList.remove('is-playing');
+    void this.warpTransition.offsetWidth;
+    this.warpTransition.classList.add('is-playing');
+    return new Promise((resolve) => {
+      this.warpTimers = [
+        window.setTimeout(onMidpoint, duration / 2),
+        window.setTimeout(() => {
+          this.warpTransition.hidden = true;
+          this.warpTransition.classList.remove('is-playing');
+          this.warpTimers = [];
+          resolve();
+        }, duration),
+      ];
+    });
   }
 
   public showStele(content: SteleContent): void {
@@ -257,6 +291,7 @@ export class GameplayOverlay {
     window.clearTimeout(this.hideTimer);
     window.clearTimeout(this.messageTimer);
     window.clearTimeout(this.openingTimer);
+    for (const timer of this.warpTimers) window.clearTimeout(timer);
     this.unsubscribeLanguage();
     this.root.remove();
   }

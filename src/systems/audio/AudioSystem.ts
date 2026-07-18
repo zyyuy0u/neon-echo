@@ -9,6 +9,11 @@ export const AUDIO_EVENTS = [
   'puzzleProgress',
   'puzzleComplete',
   'abilityUnlock',
+  'shrineFanfare',
+  'uiMove',
+  'uiConfirm',
+  'uiBack',
+  'shardTick',
   'endingTrigger',
 ] as const;
 
@@ -91,6 +96,41 @@ const TONES: Readonly<Record<AudioEvent, Tone>> = {
     endFrequency: 1047,
     duration: 0.75,
     gain: 0.15,
+    wave: 'sine',
+  },
+  shrineFanfare: {
+    frequency: 293.66,
+    endFrequency: 1174.66,
+    duration: 0.62,
+    gain: 0.15,
+    wave: 'sine',
+  },
+  uiMove: {
+    frequency: 660,
+    endFrequency: 720,
+    duration: 0.055,
+    gain: 0.055,
+    wave: 'sine',
+  },
+  uiConfirm: {
+    frequency: 440,
+    endFrequency: 660,
+    duration: 0.12,
+    gain: 0.075,
+    wave: 'triangle',
+  },
+  uiBack: {
+    frequency: 550,
+    endFrequency: 330,
+    duration: 0.12,
+    gain: 0.07,
+    wave: 'triangle',
+  },
+  shardTick: {
+    frequency: 880,
+    endFrequency: 920,
+    duration: 0.045,
+    gain: 0.045,
     wave: 'sine',
   },
   endingTrigger: {
@@ -251,8 +291,15 @@ export class AudioSystem {
 
   public play(event: AudioEvent, options: AudioEventOptions = {}): void {
     if (!this.context || !this.sfxBus || this.volume === 0) return;
-    if (event === 'abilityUnlock') {
-      this.playArpeggio([0, 4, 7, 12], TONES[event]);
+    if (event === 'abilityUnlock' || event === 'shrineFanfare') {
+      this.playArpeggio(
+        event === 'shrineFanfare' ? [0, 4, 7, 11, 12] : [0, 4, 7, 12],
+        TONES[event],
+      );
+      return;
+    }
+    if (event === 'uiConfirm' || event === 'uiBack') {
+      this.playArpeggio(event === 'uiConfirm' ? [0, 5] : [0, -5], TONES[event]);
       return;
     }
     const tone = TONES[event];

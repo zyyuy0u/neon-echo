@@ -1,8 +1,15 @@
 import { INPUT_ACTIONS, type InputAction } from '../systems/input/bindings';
 import type { GameSettings } from '../systems/save/SaveSystem';
+import type { WarpAnchor } from '../systems/warp/WarpSystem';
 import { onLanguageChange, t } from './i18n';
 
-export type MenuName = 'main' | 'pause' | 'settings' | 'controls' | 'none';
+export type MenuName =
+  'main' | 'pause' | 'warp' | 'settings' | 'controls' | 'none';
+
+export interface WarpMenuEntry {
+  anchor: WarpAnchor;
+  unlocked: boolean;
+}
 
 export interface MenuCallbacks {
   canContinue: () => boolean;
@@ -10,6 +17,9 @@ export interface MenuCallbacks {
   onNewGame: () => void;
   onResume: () => void;
   onMainMenu: () => void;
+  getWarpEntries: () => readonly WarpMenuEntry[];
+  onWarp: (anchor: WarpAnchor) => void;
+  onUiSound: (event: 'uiMove' | 'uiConfirm' | 'uiBack') => void;
   onSettingsChange: (settings: GameSettings) => void;
 }
 
@@ -22,14 +32,6 @@ const ACTION_LABELS: Readonly<Record<InputAction, string>> = {
   dash: 'settings.dash',
   interact: 'settings.interact',
 };
-
-function createButton(label: string, onClick: () => void): HTMLButtonElement {
-  const button = document.createElement('button');
-  button.type = 'button';
-  button.textContent = label;
-  button.addEventListener('click', onClick);
-  return button;
-}
 
 export class MenuSystem {
   private readonly root = document.createElement('div');
@@ -70,8 +72,7 @@ export class MenuSystem {
       document.activeElement instanceof HTMLElement &&
       this.root.contains(document.activeElement)
     ) {
-      // 關閉選單時若焦點仍在選單內，鍵盤事件會在 root 的 stopPropagation
-      // 處被吃掉，window 層的輸入/音訊解鎖監聽將收不到——必須移出焦點。
+      // Move focus out of the hidden layer so gameplay receives keyboard events.
       document.activeElement.blur();
     }
   }
@@ -92,6 +93,7 @@ export class MenuSystem {
     this.panel.replaceChildren();
     if (this.current === 'main') this.renderMain();
     if (this.current === 'pause') this.renderPause();
+    if (this.current === 'warp') this.renderWarp();
     if (this.current === 'settings') this.renderSettings();
     if (this.current === 'controls') this.renderControls();
   }
@@ -100,20 +102,20 @@ export class MenuSystem {
     const title = document.createElement('h1');
     title.textContent = t('menu.title');
     const nav = document.createElement('nav');
-    const continueButton = createButton(t('menu.continue'), () => {
+    const continueButton = this.createButton(t('menu.continue'), () => {
       this.callbacks.onContinue();
       this.open('none');
     });
     continueButton.disabled = !this.callbacks.canContinue();
-    const newGameButton = createButton(t('menu.newGame'), () => {
+    const newGameButton = this.createButton(t('menu.newGame'), () => {
       if (this.callbacks.canContinue()) this.renderOverwriteConfirmation();
       else this.startNewGame();
     });
-    const settingsButton = createButton(t('menu.settings'), () => {
+    const settingsButton = this.createButton(t('menu.settings'), () => {
       this.settingsOrigin = 'main';
       this.open('settings');
     });
-    const controlsButton = createButton(t('menu.controls'), () =>
+    const controlsButton = this.createButton(t('menu.controls'), () =>
       this.open('controls'),
     );
     nav.append(continueButton, newGameButton, settingsButton, controlsButton);
@@ -129,21 +131,49 @@ export class MenuSystem {
     const title = document.createElement('h1');
     title.textContent = t('menu.pauseTitle');
     const nav = document.createElement('nav');
-    const resume = createButton(t('menu.resume'), () => {
+    const resume = this.createButton(t('menu.resume'), () => {
       this.callbacks.onResume();
       this.open('none');
     });
-    const settings = createButton(t('menu.settings'), () => {
+    const warp = this.createButton(t('menu.warp'), () => this.open('warp'));
+    const settings = this.createButton(t('menu.settings'), () => {
       this.settingsOrigin = 'pause';
       this.open('settings');
     });
-    const main = createButton(t('menu.mainMenu'), () => {
+    const main = this.createButton(t('menu.mainMenu'), () => {
       this.callbacks.onMainMenu();
       this.open('main');
     });
-    nav.append(resume, settings, main);
+    nav.append(resume, settings, warp, main);
     this.panel.append(title, nav);
     resume.focus();
+  }
+
+  private renderWarp(): void {
+    const title = document.createElement('h1');
+    title.textContent = t('warp.title');
+    const description = document.createElement('p');
+    description.textContent = t('warp.description');
+    const list = document.createElement('nav');
+    list.className = 'warp-list';
+    const entries = this.callbacks.getWarpEntries();
+    for (const { anchor, unlocked } of entries) {
+      const button = this.createButton(
+        unlocked ? t(anchor.nameKey) : t('warp.locked'),
+        () => this.callbacks.onWarp(anchor),
+      );
+      button.disabled = !unlocked;
+      button.dataset.warpId = anchor.id;
+      list.append(button);
+    }
+    const back = this.createButton(
+      t('menu.back'),
+      () => this.open('pause'),
+      'uiBack',
+    );
+    back.className = 'menu-back';
+    this.panel.append(title, description, list, back);
+    list.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus();
   }
 
   private renderSettings(): void {
@@ -245,7 +275,7 @@ export class MenuSystem {
     for (const action of INPUT_ACTIONS) {
       const label = document.createElement('span');
       label.textContent = t(ACTION_LABELS[action]);
-      const button = createButton(
+      const button = this.createButton(
         this.rebinding === action
           ? t('settings.rebindPrompt')
           : this.settings.bindings[action],
@@ -264,8 +294,10 @@ export class MenuSystem {
     conflict.className = 'binding-conflict';
     conflict.setAttribute('role', 'alert');
 
-    const back = createButton(t('menu.back'), () =>
-      this.open(this.settingsOrigin),
+    const back = this.createButton(
+      t('menu.back'),
+      () => this.open(this.settingsOrigin),
+      'uiBack',
     );
     back.className = 'menu-back';
     form.append(
@@ -293,7 +325,11 @@ export class MenuSystem {
     actions.textContent = t('controls.actions');
     const pause = document.createElement('p');
     pause.textContent = t('controls.pause');
-    const back = createButton(t('menu.back'), () => this.open('main'));
+    const back = this.createButton(
+      t('menu.back'),
+      () => this.open('main'),
+      'uiBack',
+    );
     this.panel.append(title, movement, actions, pause, back);
     back.focus();
   }
@@ -305,8 +341,14 @@ export class MenuSystem {
     title.textContent = t('menu.overwriteTitle');
     const body = document.createElement('p');
     body.textContent = t('menu.overwriteBody');
-    const confirm = createButton(t('menu.confirm'), () => this.startNewGame());
-    const cancel = createButton(t('menu.cancel'), () => this.render());
+    const confirm = this.createButton(t('menu.confirm'), () =>
+      this.startNewGame(),
+    );
+    const cancel = this.createButton(
+      t('menu.cancel'),
+      () => this.render(),
+      'uiBack',
+    );
     this.panel.append(title, body, confirm, cancel);
     cancel.focus();
   }
@@ -319,6 +361,21 @@ export class MenuSystem {
   private updateSettings(change: Partial<GameSettings>): void {
     this.settings = { ...this.settings, ...change };
     this.callbacks.onSettingsChange(structuredClone(this.settings));
+  }
+
+  private createButton(
+    label: string,
+    onClick: () => void,
+    sound: 'uiConfirm' | 'uiBack' = 'uiConfirm',
+  ): HTMLButtonElement {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = label;
+    button.addEventListener('click', () => {
+      this.callbacks.onUiSound(sound);
+      onClick();
+    });
+    return button;
   }
 
   private createRange(
@@ -368,10 +425,12 @@ export class MenuSystem {
     }
     if (event.key === 'Escape') {
       event.preventDefault();
+      this.callbacks.onUiSound('uiBack');
       if (this.current === 'pause') {
         this.callbacks.onResume();
         this.open('none');
       } else if (this.current === 'settings') this.open(this.settingsOrigin);
+      else if (this.current === 'warp') this.open('pause');
       else if (this.current === 'controls') this.open('main');
       return;
     }
@@ -404,5 +463,6 @@ export class MenuSystem {
           : controls.length - 1
         : (currentIndex + direction + controls.length) % controls.length;
     controls[nextIndex]?.focus();
+    this.callbacks.onUiSound('uiMove');
   };
 }

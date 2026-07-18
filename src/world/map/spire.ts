@@ -5,6 +5,8 @@ export const SPIRE: Zone = {
   name: 'East · Neon Spire',
   entryRequires: ['dash'],
   bounds: { min: [70, -6, -110], max: [410, 200, 110] },
+  discoveryRadius: 170,
+  warpPoint: [350, 4, -48],
   platforms: [
     {
       id: 'spire-bridge',

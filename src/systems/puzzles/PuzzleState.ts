@@ -103,6 +103,13 @@ export class PuzzleState {
     return this.abilities.unlock(PUZZLE_ABILITY[id]);
   }
 
+  public complete(id: PuzzleId): boolean {
+    const machine = this.getMachine(id);
+    if (machine.completed) return false;
+    machine.completed = true;
+    return true;
+  }
+
   public getAll(): Record<PuzzleId, PuzzleSnapshot> {
     return {
       pulseTrack: this.get('pulseTrack'),

@@ -5,6 +5,8 @@ export const RING: Zone = {
   name: 'West · Inverted Ring',
   entryRequires: ['doubleJump'],
   bounds: { min: [-410, -8, -110], max: [-70, 130, 110] },
+  discoveryRadius: 170,
+  warpPoint: [-360, 4, 54],
   platforms: [
     {
       id: 'ring-bridge',

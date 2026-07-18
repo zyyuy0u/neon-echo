@@ -52,6 +52,8 @@ export interface Zone {
   name: string;
   entryRequires: readonly Ability[];
   bounds: ZoneBounds;
+  discoveryRadius: number;
+  warpPoint?: Vector3Tuple;
   platforms: readonly Platform[];
   landmark?: Landmark;
   shards: readonly ShardPlacement[];
@@ -60,12 +62,7 @@ export interface Zone {
 }
 
 export type GraphNodeKind =
-  | 'zone'
-  | 'landmarkTop'
-  | 'shard'
-  | 'stele'
-  | 'sanctuary'
-  | 'core';
+  'zone' | 'landmarkTop' | 'shard' | 'stele' | 'sanctuary' | 'core';
 
 export interface GraphNode {
   id: string;

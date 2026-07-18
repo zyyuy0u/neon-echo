@@ -46,6 +46,7 @@ describe('save system', () => {
     data.abilities = ['dash'];
     data.collectedShardIds = ['shard-plaza-01'];
     data.readSteleIds = ['stele-plaza-01'];
+    data.discoveredZoneIds = ['skylift', 'spire'];
     data.playerPosition = { x: 12, y: 4, z: -8 };
     data.settings.language = 'en';
     data.settings.autoCameraBehind = false;
@@ -60,6 +61,10 @@ describe('save system', () => {
     expect(loadSaveData(storage).playtimeSeconds).toBe(123.5);
     expect(loadSaveData(storage).settings.autoCameraBehind).toBe(false);
     expect(loadSaveData(storage).tutorialFlags.jumpGap).toBe(true);
+    expect(loadSaveData(storage).discoveredZoneIds).toEqual([
+      'skylift',
+      'spire',
+    ]);
   });
 
   it('migrates v1 settings with auto camera enabled and fresh tutorials', () => {
@@ -81,6 +86,19 @@ describe('save system', () => {
       dashMove: false,
       firstStele: false,
     });
+  });
+
+  it('migrates v2 saves with an empty discovery journal', () => {
+    const storage = new MemoryStorage();
+    const legacy = createDefaultSaveData() as unknown as Record<
+      string,
+      unknown
+    >;
+    legacy.version = 2;
+    delete legacy.discoveredZoneIds;
+    storage.setItem(SAVE_STORAGE_KEY, JSON.stringify(legacy));
+
+    expect(loadSaveData(storage).discoveredZoneIds).toEqual([]);
   });
 
   it('only advances playtime for positive elapsed time', () => {

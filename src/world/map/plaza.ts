@@ -5,6 +5,8 @@ export const PLAZA: Zone = {
   name: 'Stasis Plaza',
   entryRequires: [],
   bounds: { min: [-70, -4, -70], max: [70, 28, 70] },
+  discoveryRadius: 70,
+  warpPoint: [0, 1.2, 0],
   platforms: [
     {
       id: 'plaza-ground',
