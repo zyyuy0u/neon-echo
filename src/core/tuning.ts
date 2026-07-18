@@ -60,7 +60,7 @@ export interface Tuning {
 
 // Mutable by design: the development tuning panel edits these values live.
 export const tuning: Tuning = {
-  runSpeed: 32.0, // user 指定：原 8.0 的四倍
+  runSpeed: 32.0, // user 指定：原 8.0 的四倍（衝刺已等比放大維持 2.5x 爆發比）
   groundAccelerationTime: 0.15,
   groundDecelerationTime: 0.1,
   airControl: 0.65,
@@ -69,7 +69,7 @@ export const tuning: Tuning = {
   jumpBufferTime: 0.1,
   gravity: 24,
   jumpReleaseGravityMultiplier: 3,
-  dashSpeed: 20,
+  dashSpeed: 80, // 隨 runSpeed 四倍等比放大（維持 2.5x 爆發比；跑速>衝刺會使衝刺失效，e2e 已實證）
   dashDuration: 0.18,
   dashCooldown: 0.8,
   doubleJumpHeight: 1.8,
