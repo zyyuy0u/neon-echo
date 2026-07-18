@@ -1,6 +1,8 @@
 import { defineConfig } from 'vite';
 
 export default defineConfig({
+  // GitHub Pages 部署於 /<repo>/ 子路徑，資產一律相對引用。
+  base: './',
   resolve: {
     alias: [{ find: /^three$/, replacement: 'three/src/Three.js' }],
   },
@@ -23,7 +25,10 @@ export default defineConfig({
             'import __rapierWasmUrl from "./rapier_wasm3d_bg.wasm?url";' +
             code.replace(
               inlineWasm,
-              '(yield fetch(__rapierWasmUrl).then((response) => response.arrayBuffer()))',
+              // 原始碼在此表達式後緊接 `.buffer`，替換結果必須是 TypedArray
+              // 才能讓 `.buffer` 得到合法 ArrayBuffer（否則 undefined 會落入
+              // glue 的 URL fallback，於生產建置中因 import.meta.url 被替換而崩潰）。
+              'new Uint8Array(yield fetch(__rapierWasmUrl).then((response) => response.arrayBuffer()))',
             ),
           map: null,
         };
