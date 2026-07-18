@@ -18,7 +18,7 @@ interface AbilityMovementTrigger {
 
 export interface TutorialDefinition {
   id: TutorialId;
-  messageKey: string;
+  messageKeys: Readonly<Record<'keyboard' | 'gamepad', string>>;
   action: 'jump' | 'dash' | 'interact';
   flag: TutorialId;
   trigger: ProximityTrigger | AbilityMovementTrigger;
@@ -33,7 +33,10 @@ export interface TutorialContext {
 export const TUTORIAL_DEFINITIONS: readonly TutorialDefinition[] = [
   {
     id: 'jumpGap',
-    messageKey: 'tutorial.jump',
+    messageKeys: {
+      keyboard: 'tutorial.jump.keyboard',
+      gamepad: 'tutorial.jump.gamepad',
+    },
     action: 'jump',
     flag: 'jumpGap',
     trigger: {
@@ -44,14 +47,20 @@ export const TUTORIAL_DEFINITIONS: readonly TutorialDefinition[] = [
   },
   {
     id: 'dashMove',
-    messageKey: 'tutorial.dash',
+    messageKeys: {
+      keyboard: 'tutorial.dash.keyboard',
+      gamepad: 'tutorial.dash.gamepad',
+    },
     action: 'dash',
     flag: 'dashMove',
     trigger: { kind: 'abilityMovement', ability: 'dash' },
   },
   {
     id: 'firstStele',
-    messageKey: 'tutorial.interact',
+    messageKeys: {
+      keyboard: 'tutorial.interact.keyboard',
+      gamepad: 'tutorial.interact.gamepad',
+    },
     action: 'interact',
     flag: 'firstStele',
     trigger: {

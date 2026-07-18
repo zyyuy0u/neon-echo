@@ -14,6 +14,7 @@ import { STELES } from './content/steles';
 import { PALETTE } from './render/palette';
 import { createParticleSystem } from './render/particles';
 import { createPostProcessing } from './render/postfx';
+import { getRenderPixelRatio } from './render/resolution';
 import { createSynthwaveSky } from './render/sky';
 import { ThirdPersonCamera } from './systems/camera/ThirdPersonCamera';
 import {
@@ -27,6 +28,10 @@ import { CharacterController } from './systems/character/CharacterController';
 import { CollectibleState } from './systems/collectibles/CollectibleState';
 import { EndingState, type EndingChoice } from './systems/ending/EndingState';
 import { InputSystem } from './systems/input/InputSystem';
+import {
+  GamepadSystem,
+  type InputDevice,
+} from './systems/input/GamepadSystem';
 import { PuzzleState, type PuzzleId } from './systems/puzzles/PuzzleState';
 import {
   advancePlaytime,
@@ -151,7 +156,9 @@ async function startGame(): Promise<() => void> {
   sky.setMood(currentMood);
 
   const renderer = new WebGLRenderer({ canvas, antialias: true });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setPixelRatio(
+    getRenderPixelRatio(window.devicePixelRatio, settings.resolutionScale),
+  );
 
   const physicsWorld = new World({ x: 0, y: -tuning.gravity, z: 0 });
   const abilities = new AbilityState();
@@ -160,7 +167,7 @@ async function startGame(): Promise<() => void> {
   const shardPlacements = WORLD_ZONES.flatMap((zone) => zone.shards);
   const stelePlacements = WORLD_ZONES.flatMap((zone) => zone.steles);
   const collectibles = new CollectibleState(shardPlacements);
-  const audio = new AudioSystem(settings.volume);
+  const audio = new AudioSystem(settings.musicVolume, settings.sfxVolume);
   audio.bindGestureUnlock(window);
   const particles = createParticleSystem(
     scene,
@@ -175,8 +182,22 @@ async function startGame(): Promise<() => void> {
   });
   const character = new CharacterController(physicsWorld, scene, abilities);
   const tutorials = new TutorialSystem();
-  const input = new InputSystem(canvas, settings.bindings);
   const overlay = new GameplayOverlay();
+  let inputDevice: InputDevice = 'keyboard';
+  const setInputDevice = (device: InputDevice): void => {
+    if (device === inputDevice) return;
+    inputDevice = device;
+    overlay.setInputDevice(device);
+  };
+  const input = new InputSystem(canvas, settings.bindings, () =>
+    setInputDevice('keyboard'),
+  );
+  const gamepad = new GamepadSystem(undefined, {
+    onConnected: (name) => overlay.showToast('gamepad.connected', { name }),
+    onDisconnected: (name) =>
+      overlay.showToast('gamepad.disconnected', { name }),
+    onInput: setInputDevice,
+  });
   const compass = new CompassBar();
   overlay.attachHudElement(compass.element);
   overlay.setSubtitleSize(settings.subtitleSize);
@@ -188,6 +209,9 @@ async function startGame(): Promise<() => void> {
   thirdPersonCamera.update(1 / 60);
 
   const postfx = createPostProcessing(renderer, scene, camera);
+  postfx.setBloom(settings.bloomEnabled, settings.bloomIntensity);
+  thirdPersonCamera.setBaseFieldOfView(settings.fieldOfView);
+  overlay.setFpsVisible(settings.showFps);
 
   const devPanel = import.meta.env.DEV
     ? new DevTuningPanel(renderer)
@@ -431,29 +455,52 @@ async function startGame(): Promise<() => void> {
   const loop = new GameLoop({
     update: (fixedDeltaSeconds) => {
       const pointerDelta = input.consumePointerDelta();
-      if (controlsEnabled) thirdPersonCamera.applyPointerDelta(pointerDelta);
+      if (controlsEnabled) {
+        thirdPersonCamera.applyPointerDelta(pointerDelta);
+        thirdPersonCamera.applyGamepadAxes(
+          gamepad.getLookAxes(),
+          fixedDeltaSeconds,
+        );
+      }
       const steleSkipped =
-        overlay.isSteleTyping() && input.hasAnyPressed()
+        overlay.isSteleTyping() &&
+        (input.hasAnyPressed() || gamepad.hasAnyPressed())
           ? overlay.skipStele()
           : false;
+      const keyboardMovement = input.getMovementAxes();
+      const gamepadMovement = gamepad.getMovementAxes();
+      const combinedX = keyboardMovement.x + gamepadMovement.x;
+      const combinedY = keyboardMovement.y + gamepadMovement.y;
+      const combinedLength = Math.hypot(combinedX, combinedY);
       const movementAxes = controlsEnabled
-        ? input.getMovementAxes()
+        ? combinedLength > 1
+          ? { x: combinedX / combinedLength, y: combinedY / combinedLength }
+          : { x: combinedX, y: combinedY }
         : { x: 0, y: 0 };
       const move = thirdPersonCamera.getMovementDirection(movementAxes);
       const jumpPressed =
-        controlsEnabled && !steleSkipped && input.wasActionPressed('jump');
-      const jumpReleased = controlsEnabled && input.wasActionReleased('jump');
+        controlsEnabled &&
+        !steleSkipped &&
+        (input.wasActionPressed('jump') || gamepad.wasActionPressed('jump'));
+      const jumpReleased =
+        controlsEnabled &&
+        (input.wasActionReleased('jump') || gamepad.wasActionReleased('jump'));
       const dashPressed =
-        controlsEnabled && !steleSkipped && input.wasActionPressed('dash');
+        controlsEnabled &&
+        !steleSkipped &&
+        (input.wasActionPressed('dash') || gamepad.wasActionPressed('dash'));
       const interactPressed =
         controlsEnabled &&
         !steleSkipped &&
-        input.wasActionPressed('interact');
+        (input.wasActionPressed('interact') ||
+          gamepad.wasActionPressed('interact'));
       const positionBeforeMove = character.getPosition();
       const locomotion = character.update(fixedDeltaSeconds, {
         move,
         jumpPressed,
-        jumpHeld: controlsEnabled && input.isActionHeld('jump'),
+        jumpHeld:
+          controlsEnabled &&
+          (input.isActionHeld('jump') || gamepad.isActionHeld('jump')),
         jumpReleased,
         dashPressed,
         inUpdraft: gameplayWorld.isInUpdraft(positionBeforeMove),
@@ -476,6 +523,7 @@ async function startGame(): Promise<() => void> {
       }
       if (!steleSkipped && input.wasPressed('Backquote')) devPanel?.toggle();
       input.endFixedStep();
+      gamepad.endFixedStep();
 
       physicsWorld.timestep = fixedDeltaSeconds;
       physicsWorld.step();
@@ -527,7 +575,22 @@ async function startGame(): Promise<() => void> {
       sky.update(fixedDeltaSeconds, camera.position);
     },
     render: () => {
+      gamepad.update();
+      if (menu.name === 'none') {
+        if (
+          gamepad.consumeStartPressed() &&
+          sessionStarted &&
+          !fanfareActive &&
+          !warpActive
+        ) {
+          openMenu('pause');
+        }
+      } else {
+        menu.handleGamepadActions(gamepad.consumeMenuActions());
+        gamepad.endFixedStep();
+      }
       postfx.render();
+      overlay.recordFrame();
       devPanel?.recordFrame();
     },
   });
@@ -539,12 +602,21 @@ async function startGame(): Promise<() => void> {
     input.setBindings(settings.bindings);
     overlay.setSubtitleSize(settings.subtitleSize);
     overlay.setReducedMotion(settings.reducedMotion);
-    audio.setVolume(settings.volume);
+    audio.setVolumes(settings.musicVolume, settings.sfxVolume);
     particles.setReducedMotion(settings.reducedMotion);
     character.setReducedMotion(settings.reducedMotion);
     worldBuilder.setReducedMotion(settings.reducedMotion);
     compass.setReducedMotion(settings.reducedMotion);
     thirdPersonCamera.setAutoBehindEnabled(settings.autoCameraBehind);
+    thirdPersonCamera.setBaseFieldOfView(settings.fieldOfView);
+    const pixelRatio = getRenderPixelRatio(
+      window.devicePixelRatio,
+      settings.resolutionScale,
+    );
+    renderer.setPixelRatio(pixelRatio);
+    postfx.resize(window.innerWidth, window.innerHeight);
+    postfx.setBloom(settings.bloomEnabled, settings.bloomIntensity);
+    overlay.setFpsVisible(settings.showFps);
     thirdPersonCamera.setSteleFocus(
       overlay.isSteleOpen(),
       settings.reducedMotion,
@@ -722,6 +794,10 @@ async function startGame(): Promise<() => void> {
           drawCalls: renderer.info.render.calls,
           triangles: renderer.info.render.triangles,
         }),
+        getRenderInfo: () => ({
+          pixelRatio: renderer.getPixelRatio(),
+          resolutionScale: settings.resolutionScale,
+        }),
         getWorldStats: () => worldBuilder.getStats(),
         grantAbility: (ability: Ability) => abilities.unlock(ability),
         getAbilities: () => abilities.getAll(),
@@ -758,6 +834,7 @@ async function startGame(): Promise<() => void> {
           ambientIntensity: ambientLight.intensity,
           dayPhase,
           skyEnabled: scene.getObjectByName('synthwave-sky') !== undefined,
+          ...postfx.getState(),
         }),
         getSaveData: () =>
           structuredClone(sessionStarted ? getSnapshot() : loadSaveData()),

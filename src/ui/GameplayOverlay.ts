@@ -1,5 +1,6 @@
 import type { SteleContent } from '../content/steles';
 import type { EndingChoice } from '../systems/ending/EndingState';
+import type { InputDevice } from '../systems/input/GamepadSystem';
 import type { SubtitleSize } from '../systems/save/SaveSystem';
 import type {
   TutorialDefinition,
@@ -60,6 +61,8 @@ export class GameplayOverlay {
   private readonly shardCounter = document.createElement('div');
   private readonly shardValue = document.createElement('strong');
   private readonly message = document.createElement('div');
+  private readonly fps = document.createElement('div');
+  private readonly toast = document.createElement('div');
   private readonly opening = document.createElement('div');
   private readonly openingText = document.createElement('span');
   private readonly warpTransition = document.createElement('div');
@@ -69,6 +72,12 @@ export class GameplayOverlay {
   private shardCount = 0;
   private hideTimer: number | undefined;
   private messageTimer: number | undefined;
+  private toastTimer: number | undefined;
+  private fpsVisible = false;
+  private fpsFrameCount = 0;
+  private fpsWindowStarted = 0;
+  private inputDevice: InputDevice = 'keyboard';
+  private currentTutorial: TutorialDefinition | undefined;
   private openingTimer: number | undefined;
   private warpTimers: number[] = [];
   private currentStele: SteleContent | undefined;
@@ -92,6 +101,12 @@ export class GameplayOverlay {
     this.shardCounter.append(this.shardValue);
     this.message.className = 'gameplay-message';
     this.message.setAttribute('role', 'status');
+    this.fps.className = 'fps-hud';
+    this.fps.hidden = true;
+    this.fps.setAttribute('aria-live', 'off');
+    this.toast.className = 'connection-toast';
+    this.toast.setAttribute('role', 'status');
+    this.toast.hidden = true;
     this.stele.className = 'stele-overlay';
     this.ending.className = 'ending-overlay';
     this.stele.hidden = true;
@@ -106,6 +121,7 @@ export class GameplayOverlay {
     this.hud.append(this.abilityList, this.shardCounter);
     this.root.append(
       this.hud,
+      this.fps,
       this.message,
       this.stele,
       this.ending,
@@ -113,9 +129,11 @@ export class GameplayOverlay {
       this.warpTransition,
     );
     document.body.append(this.root);
+    document.body.append(this.toast);
     this.renderHud();
     this.unsubscribeLanguage = onLanguageChange(() => {
       this.renderHud();
+      if (this.currentTutorial) this.renderCurrentTutorial();
       if (this.currentStele) this.startSteleTypewriter();
     });
   }
@@ -155,6 +173,41 @@ export class GameplayOverlay {
     this.stele.dataset.size = size;
   }
 
+  public setInputDevice(device: InputDevice): void {
+    if (this.inputDevice === device) return;
+    this.inputDevice = device;
+    if (this.currentTutorial) this.renderCurrentTutorial();
+  }
+
+  public setFpsVisible(visible: boolean): void {
+    this.fpsVisible = visible;
+    this.fps.hidden = !visible;
+    this.fpsFrameCount = 0;
+    this.fpsWindowStarted = performance.now();
+  }
+
+  public recordFrame(now = performance.now()): void {
+    if (!this.fpsVisible) return;
+    this.fpsFrameCount += 1;
+    const elapsed = now - this.fpsWindowStarted;
+    if (elapsed < 500) return;
+    const framesPerSecond = Math.round((this.fpsFrameCount * 1000) / elapsed);
+    this.fps.textContent = t('hud.fps', { value: framesPerSecond });
+    this.fpsFrameCount = 0;
+    this.fpsWindowStarted = now;
+  }
+
+  public showToast(key: string, values: Readonly<Record<string, string>>): void {
+    window.clearTimeout(this.toastTimer);
+    this.toast.textContent = t(key, values);
+    this.toast.hidden = false;
+    this.toast.classList.add('is-visible');
+    this.toastTimer = window.setTimeout(() => {
+      this.toast.classList.remove('is-visible');
+      this.toast.hidden = true;
+    }, 2600);
+  }
+
   public showUnlock(ability: Ability): void {
     this.unlocked.add(ability);
     this.renderHud(ability);
@@ -166,7 +219,8 @@ export class GameplayOverlay {
   }
 
   public showTutorial(definition: TutorialDefinition): void {
-    this.showMessage(t(definition.messageKey), 4000);
+    this.showMessage(t(definition.messageKeys[this.inputDevice]), 4000);
+    this.currentTutorial = definition;
     this.message.dataset.tutorial = definition.id;
   }
 
@@ -175,6 +229,7 @@ export class GameplayOverlay {
     window.clearTimeout(this.messageTimer);
     this.message.classList.remove('is-visible');
     delete this.message.dataset.tutorial;
+    this.currentTutorial = undefined;
   }
 
   public showOpening(reducedMotion: boolean, onComplete: () => void): void {
@@ -337,11 +392,13 @@ export class GameplayOverlay {
   public dispose(): void {
     window.clearTimeout(this.hideTimer);
     window.clearTimeout(this.messageTimer);
+    window.clearTimeout(this.toastTimer);
     window.clearTimeout(this.openingTimer);
     window.cancelAnimationFrame(this.steleFrame ?? 0);
     for (const timer of this.warpTimers) window.clearTimeout(timer);
     this.unsubscribeLanguage();
     this.root.remove();
+    this.toast.remove();
   }
 
   private renderHud(flash?: Ability): void {
@@ -430,11 +487,20 @@ export class GameplayOverlay {
   private showMessage(text: string, duration: number): void {
     window.clearTimeout(this.messageTimer);
     delete this.message.dataset.tutorial;
+    this.currentTutorial = undefined;
     this.message.textContent = text;
     this.message.classList.add('is-visible');
     this.messageTimer = window.setTimeout(() => {
       this.message.classList.remove('is-visible');
       delete this.message.dataset.tutorial;
+      this.currentTutorial = undefined;
     }, duration);
+  }
+
+  private renderCurrentTutorial(): void {
+    if (!this.currentTutorial) return;
+    this.message.textContent = t(
+      this.currentTutorial.messageKeys[this.inputDevice],
+    );
   }
 }

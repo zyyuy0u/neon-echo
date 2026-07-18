@@ -13,10 +13,11 @@ import {
   type TutorialFlags,
 } from '../tutorial/TutorialSystem';
 
-export const SAVE_VERSION = 4;
+export const SAVE_VERSION = 5;
 export const SAVE_STORAGE_KEY = 'neon-echo-save';
 
 export type SubtitleSize = 'small' | 'medium' | 'large';
+export type ResolutionScale = 0.5 | 0.75 | 1;
 
 export interface GameSettings {
   language: Language;
@@ -24,8 +25,14 @@ export interface GameSettings {
   reducedMotion: boolean;
   autoCameraBehind: boolean;
   bindings: KeyBindings;
-  volume: number;
+  musicVolume: number;
+  sfxVolume: number;
   subtitleSize: SubtitleSize;
+  resolutionScale: ResolutionScale;
+  bloomEnabled: boolean;
+  bloomIntensity: number;
+  fieldOfView: number;
+  showFps: boolean;
 }
 
 export interface SavedPosition {
@@ -70,8 +77,14 @@ export function createDefaultSettings(): GameSettings {
     reducedMotion: false,
     autoCameraBehind: true,
     bindings: { ...DEFAULT_BINDINGS },
-    volume: 0.8,
+    musicVolume: 0.8,
+    sfxVolume: 0.8,
     subtitleSize: 'medium',
+    resolutionScale: 1,
+    bloomEnabled: true,
+    bloomIntensity: 1,
+    fieldOfView: 75,
+    showFps: false,
   };
 }
 
@@ -149,8 +162,22 @@ function isSaveData(value: unknown): value is SaveData {
     !isFiniteNumber(settings.mouseSensitivity) ||
     typeof settings.reducedMotion !== 'boolean' ||
     typeof settings.autoCameraBehind !== 'boolean' ||
-    !isFiniteNumber(settings.volume) ||
+    !isFiniteNumber(settings.musicVolume) ||
+    settings.musicVolume < 0 ||
+    settings.musicVolume > 1 ||
+    !isFiniteNumber(settings.sfxVolume) ||
+    settings.sfxVolume < 0 ||
+    settings.sfxVolume > 1 ||
     !['small', 'medium', 'large'].includes(settings.subtitleSize as string) ||
+    ![0.5, 0.75, 1].includes(settings.resolutionScale as number) ||
+    typeof settings.bloomEnabled !== 'boolean' ||
+    !isFiniteNumber(settings.bloomIntensity) ||
+    settings.bloomIntensity < 0.5 ||
+    settings.bloomIntensity > 1.5 ||
+    !isFiniteNumber(settings.fieldOfView) ||
+    settings.fieldOfView < 60 ||
+    settings.fieldOfView > 100 ||
+    typeof settings.showFps !== 'boolean' ||
     !INPUT_ACTIONS.every((action) => typeof bindings[action] === 'string')
   ) {
     return false;
@@ -197,15 +224,34 @@ export function migrateSaveData(value: unknown): SaveData | undefined {
     (value.version !== 1 &&
       value.version !== 2 &&
       value.version !== 3 &&
+      value.version !== 4 &&
       value.version !== SAVE_VERSION)
   ) {
     return undefined;
   }
+  const defaults = createDefaultSettings();
   const settings = isObject(value.settings)
-    ? {
-        ...value.settings,
-        autoCameraBehind: value.settings.autoCameraBehind ?? true,
-      }
+    ? (() => {
+        const legacyVolume = isFiniteNumber(value.settings.volume)
+          ? value.settings.volume
+          : undefined;
+        const migratedSettings = {
+          ...defaults,
+          ...value.settings,
+          autoCameraBehind: value.settings.autoCameraBehind ?? true,
+          musicVolume: value.settings.musicVolume ?? legacyVolume ?? defaults.musicVolume,
+          sfxVolume: value.settings.sfxVolume ?? legacyVolume ?? defaults.sfxVolume,
+          resolutionScale:
+            value.settings.resolutionScale ?? defaults.resolutionScale,
+          bloomEnabled: value.settings.bloomEnabled ?? defaults.bloomEnabled,
+          bloomIntensity:
+            value.settings.bloomIntensity ?? defaults.bloomIntensity,
+          fieldOfView: value.settings.fieldOfView ?? defaults.fieldOfView,
+          showFps: value.settings.showFps ?? defaults.showFps,
+        };
+        Reflect.deleteProperty(migratedSettings, 'volume');
+        return migratedSettings;
+      })()
     : value.settings;
   const candidate = {
     ...value,

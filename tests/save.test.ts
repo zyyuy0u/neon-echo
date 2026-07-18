@@ -116,6 +116,31 @@ describe('save system', () => {
     expect(loadSaveData(storage).dayPhase).toBe(0);
   });
 
+  it('migrates a v4 single volume into independent music and sfx tracks', () => {
+    const storage = new MemoryStorage();
+    const legacy = createDefaultSaveData() as unknown as Record<
+      string,
+      unknown
+    >;
+    legacy.version = 4;
+    const legacySettings = legacy.settings as Record<string, unknown>;
+    legacySettings.volume = 0.35;
+    delete legacySettings.musicVolume;
+    delete legacySettings.sfxVolume;
+    delete legacySettings.resolutionScale;
+    delete legacySettings.bloomEnabled;
+    delete legacySettings.bloomIntensity;
+    delete legacySettings.fieldOfView;
+    delete legacySettings.showFps;
+    storage.setItem(SAVE_STORAGE_KEY, JSON.stringify(legacy));
+
+    const migrated = loadSaveData(storage);
+    expect(migrated.settings.musicVolume).toBe(0.35);
+    expect(migrated.settings.sfxVolume).toBe(0.35);
+    expect(migrated.settings.resolutionScale).toBe(1);
+    expect(migrated.settings).not.toHaveProperty('volume');
+  });
+
   it('only advances playtime for positive elapsed time', () => {
     const elapsed = advancePlaytime(42, 3.5);
 

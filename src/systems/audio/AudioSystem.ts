@@ -29,8 +29,11 @@ export interface AudioEventOptions {
 
 export interface AudioState {
   initialized: boolean;
+  /** Compatibility aggregate for older debug consumers. */
   volume: number;
   respectsVolume: boolean;
+  musicVolume: number;
+  sfxVolume: number;
   zone: MusicZone;
 }
 
@@ -166,6 +169,7 @@ const ZONE_FILTERS: Readonly<Record<MusicZone, number>> = {
 
 const CROSSFADE_SECONDS = 2.2;
 const PAD_SECONDS = 4;
+const MUSIC_BASE_GAIN = 0.38;
 const FOOTSTEP_PHASES = [0.16, 0.66] as const;
 
 export type LandingSoundTier = 'soft' | 'hard';
@@ -214,13 +218,14 @@ export function getMusicZone(
 /** Procedural WebAudio only: construction is deliberately context-free. */
 export class AudioSystem {
   private context: AudioContext | undefined;
-  private master: GainNode | undefined;
   private sfxBus: GainNode | undefined;
   private musicBus: GainNode | undefined;
   private readonly zoneBuses = new Map<MusicZone, GainNode>();
   private readonly activeSources = new Set<AudioScheduledSourceNode>();
-  private volume: number;
-  private appliedVolume: number;
+  private musicVolume: number;
+  private sfxVolume: number;
+  private appliedMusicVolume: number;
+  private appliedSfxVolume: number;
   private zone: MusicZone = 'south';
   private nextChordTime = 0;
   private chordIndex = 0;
@@ -229,12 +234,25 @@ export class AudioSystem {
   private footstepIndex = 0;
   private removeGestureListeners: (() => void) | undefined;
 
+  private readonly contextFactory: AudioContextFactory;
+
   public constructor(
-    volume = 0.8,
-    private readonly contextFactory: AudioContextFactory = defaultContextFactory,
+    musicVolume = 0.8,
+    sfxVolumeOrFactory: number | AudioContextFactory = musicVolume,
+    contextFactory: AudioContextFactory = defaultContextFactory,
   ) {
-    this.volume = clampVolume(volume);
-    this.appliedVolume = this.volume;
+    this.musicVolume = clampVolume(musicVolume);
+    this.sfxVolume = clampVolume(
+      typeof sfxVolumeOrFactory === 'number'
+        ? sfxVolumeOrFactory
+        : musicVolume,
+    );
+    this.contextFactory =
+      typeof sfxVolumeOrFactory === 'function'
+        ? sfxVolumeOrFactory
+        : contextFactory;
+    this.appliedMusicVolume = this.musicVolume;
+    this.appliedSfxVolume = this.sfxVolume;
   }
 
   public bindGestureUnlock(target: Window): () => void {
@@ -258,13 +276,12 @@ export class AudioSystem {
     const master = context.createGain();
     const sfxBus = context.createGain();
     const musicBus = context.createGain();
-    master.gain.value = this.volume;
-    sfxBus.gain.value = 1;
-    musicBus.gain.value = 0.38;
+    master.gain.value = 1;
+    sfxBus.gain.value = this.sfxVolume;
+    musicBus.gain.value = MUSIC_BASE_GAIN * this.musicVolume;
     sfxBus.connect(master);
     musicBus.connect(master);
     master.connect(context.destination);
-    this.master = master;
     this.sfxBus = sfxBus;
     this.musicBus = musicBus;
     for (const zone of Object.keys(ZONE_CHORDS) as MusicZone[]) {
@@ -278,27 +295,40 @@ export class AudioSystem {
       this.zoneBuses.set(zone, zoneBus);
     }
     this.nextChordTime = context.currentTime;
-    this.appliedVolume = this.volume;
+    this.appliedMusicVolume = this.musicVolume;
+    this.appliedSfxVolume = this.sfxVolume;
     this.removeGestureListeners?.();
     if (context.state === 'suspended') void context.resume();
   }
 
   public setVolume(volume: number): void {
-    this.volume = clampVolume(volume);
-    this.appliedVolume = this.volume;
-    if (!this.context || !this.master) return;
-    this.master.gain.cancelScheduledValues(this.context.currentTime);
-    this.master.gain.setValueAtTime(this.volume, this.context.currentTime);
-    if (this.volume === 0) {
+    this.setVolumes(volume, volume);
+  }
+
+  public setVolumes(musicVolume: number, sfxVolume: number): void {
+    this.musicVolume = clampVolume(musicVolume);
+    this.sfxVolume = clampVolume(sfxVolume);
+    this.appliedMusicVolume = this.musicVolume;
+    this.appliedSfxVolume = this.sfxVolume;
+    if (!this.context || !this.musicBus || !this.sfxBus) return;
+    const now = this.context.currentTime;
+    this.musicBus.gain.cancelScheduledValues(now);
+    this.musicBus.gain.setValueAtTime(
+      MUSIC_BASE_GAIN * this.musicVolume,
+      now,
+    );
+    this.sfxBus.gain.cancelScheduledValues(now);
+    this.sfxBus.gain.setValueAtTime(this.sfxVolume, now);
+    if (this.musicVolume === 0 && this.sfxVolume === 0) {
       for (const source of this.activeSources) source.stop();
       this.activeSources.clear();
-    } else {
+    } else if (this.musicVolume > 0) {
       this.nextChordTime = this.context.currentTime;
     }
   }
 
   public play(event: AudioEvent, options: AudioEventOptions = {}): void {
-    if (!this.context || !this.sfxBus || this.volume === 0) return;
+    if (!this.context || !this.sfxBus || this.sfxVolume === 0) return;
     if (event === 'abilityUnlock' || event === 'shrineFanfare') {
       this.playArpeggio(
         event === 'shrineFanfare' ? [0, 4, 7, 11, 12] : [0, 4, 7, 12],
@@ -330,7 +360,7 @@ export class AudioSystem {
   }
 
   public playLanding(verticalSpeed: number): void {
-    if (!this.context || !this.sfxBus || this.volume === 0) return;
+    if (!this.context || !this.sfxBus || this.sfxVolume === 0) return;
     const tier = getLandingSoundTier(verticalSpeed);
     this.scheduleTone(
       tier === 'hard'
@@ -365,7 +395,7 @@ export class AudioSystem {
       activePhase,
     );
     this.previousRunPhase = activePhase;
-    if (!this.context || !this.sfxBus || this.volume === 0) return;
+    if (!this.context || !this.sfxBus || this.sfxVolume === 0) return;
     for (let index = 0; index < crossings; index += 1) {
       const alternate = this.footstepIndex % 2;
       const speedVolume = Math.min(1, horizontalSpeed / tuning.runSpeed);
@@ -390,7 +420,8 @@ export class AudioSystem {
   ): void {
     const nextZone = getMusicZone(position);
     if (nextZone !== this.zone && !this.ending) this.crossfadeTo(nextZone);
-    if (!this.context || this.volume === 0 || this.ending === 'rest') return;
+    if (!this.context || this.musicVolume === 0 || this.ending === 'rest')
+      return;
     while (this.nextChordTime < this.context.currentTime + 0.5) {
       this.schedulePadChord(this.nextChordTime);
       this.nextChordTime += PAD_SECONDS;
@@ -401,12 +432,15 @@ export class AudioSystem {
   public triggerEnding(choice: 'awaken' | 'rest'): void {
     this.ending = choice;
     this.play('endingTrigger', { ending: choice });
-    if (!this.context || !this.musicBus || this.volume === 0) return;
+    if (!this.context || !this.musicBus || this.musicVolume === 0) return;
     const now = this.context.currentTime;
     if (choice === 'awaken') {
       this.musicBus.gain.cancelScheduledValues(now);
       this.musicBus.gain.setValueAtTime(this.musicBus.gain.value, now);
-      this.musicBus.gain.linearRampToValueAtTime(0.52, now + 2.4);
+      this.musicBus.gain.linearRampToValueAtTime(
+        0.52 * this.musicVolume,
+        now + 2.4,
+      );
       this.playArpeggio([0, 4, 7, 11, 12], {
         ...TONES.abilityUnlock,
         frequency: 293.66,
@@ -437,7 +471,7 @@ export class AudioSystem {
     choice: 'awaken' | 'rest',
     waveIndex: number,
   ): void {
-    if (!this.context || !this.sfxBus || this.volume === 0) return;
+    if (!this.context || !this.sfxBus || this.sfxVolume === 0) return;
     const index = Math.max(0, Math.floor(waveIndex));
     const semitones = choice === 'awaken' ? index * 4 : -index * 3;
     const frequency = 196 * 2 ** (semitones / 12);
@@ -457,8 +491,12 @@ export class AudioSystem {
   public getState(): AudioState {
     return {
       initialized: this.context !== undefined,
-      volume: this.volume,
-      respectsVolume: this.appliedVolume === this.volume,
+      volume: Math.max(this.musicVolume, this.sfxVolume),
+      respectsVolume:
+        this.appliedMusicVolume === this.musicVolume &&
+        this.appliedSfxVolume === this.sfxVolume,
+      musicVolume: this.musicVolume,
+      sfxVolume: this.sfxVolume,
       zone: this.zone,
     };
   }
@@ -486,7 +524,7 @@ export class AudioSystem {
   }
 
   private schedulePadChord(startTime: number): void {
-    if (!this.context || this.volume === 0) return;
+    if (!this.context || this.musicVolume === 0) return;
     for (const [zone, frequencies] of Object.entries(ZONE_CHORDS) as Array<
       [MusicZone, readonly number[]]
     >) {
@@ -510,7 +548,7 @@ export class AudioSystem {
   }
 
   private playArpeggio(intervals: readonly number[], base: Tone): void {
-    if (!this.context || !this.sfxBus || this.volume === 0) return;
+    if (!this.context || !this.sfxBus || this.sfxVolume === 0) return;
     intervals.forEach((semitones, index) => {
       const frequency = base.frequency * 2 ** (semitones / 12);
       this.scheduleTone(
@@ -528,7 +566,8 @@ export class AudioSystem {
   }
 
   private scheduleTone(tone: Tone, startTime: number, output: AudioNode): void {
-    if (!this.context || this.volume === 0) return;
+    if (!this.context || (this.musicVolume === 0 && this.sfxVolume === 0))
+      return;
     const oscillator = this.context.createOscillator();
     const envelope = this.context.createGain();
     oscillator.type = tone.wave;

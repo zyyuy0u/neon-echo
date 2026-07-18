@@ -53,6 +53,7 @@ export class ThirdPersonCamera {
   private landingDipElapsed = 0;
   private openingElapsed: number | undefined;
   private steleFocusTarget = 0;
+  private baseFieldOfView = tuning.cameraFieldOfView;
   private steleFocusBlend = 0;
 
   public constructor(
@@ -77,9 +78,32 @@ export class ThirdPersonCamera {
     );
   }
 
+  public applyGamepadAxes(
+    axes: Readonly<{ x: number; y: number }>,
+    deltaSeconds: number,
+  ): void {
+    if (axes.x !== 0 || axes.y !== 0) this.movingWithoutPointerSeconds = 0;
+    const horizontalSign = tuning.invertCameraX ? 1 : -1;
+    const verticalSign = tuning.invertCameraY ? -1 : 1;
+    this.yaw +=
+      axes.x * tuning.gamepadLookSpeed * deltaSeconds * horizontalSign;
+    this.pitch = Math.min(
+      tuning.cameraPitchMax,
+      Math.max(
+        tuning.cameraPitchMin,
+        this.pitch +
+          axes.y * tuning.gamepadLookSpeed * deltaSeconds * verticalSign,
+      ),
+    );
+  }
+
   public setAutoBehindEnabled(enabled: boolean): void {
     this.autoBehindEnabled = enabled;
     if (!enabled) this.movingWithoutPointerSeconds = 0;
+  }
+
+  public setBaseFieldOfView(fieldOfView: number): void {
+    this.baseFieldOfView = Math.min(100, Math.max(60, fieldOfView));
   }
 
   public startOpening(reducedMotion: boolean): void {
@@ -239,7 +263,7 @@ export class ThirdPersonCamera {
         ? Math.min(target, this.fovBlend + step)
         : Math.max(target, this.fovBlend - step);
     const fieldOfView =
-      tuning.cameraFieldOfView +
+      this.baseFieldOfView +
       tuning.sprintFovBoost * smoothstep(this.fovBlend);
     if (this.camera.fov !== fieldOfView) {
       this.camera.fov = fieldOfView;

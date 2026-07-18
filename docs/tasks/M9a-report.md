@@ -1,0 +1,32 @@
+## REPORT
+- 結論: PASS — 圖形設定、音量分軌與可注入 Gamepad API 支援均已完成，所有允許執行的驗收指令皆 exit 0。
+- 產出:
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/systems/save/SaveSystem.ts:16-36,73-88,132-265
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/ui/MenuSystem.ts:69-103,271-346,410-442,526-592
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/render/resolution.ts:1-15
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/render/postfx.ts:16-77
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/ui/GameplayOverlay.ts:57-139,176-225
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/systems/audio/AudioSystem.ts:25-36,217-332,473-482
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/systems/input/GamepadSystem.ts:1-212
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/systems/input/InputSystem.ts:15-116
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/systems/camera/ThirdPersonCamera.ts:64-103,264-278
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/systems/tutorial/TutorialSystem.ts:18-65
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/main.ts:158-211,452-586,594-629,776-838
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/ui/i18n/zh.ts:27-35,57,82-89
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/ui/i18n/en.ts:31-39,65,90-97
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/tests/gamepad.test.ts:1-68
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/tests/resolution.test.ts:1-11
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/tests/save.test.ts:119-142
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/tests/audio.test.ts:124-141
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/e2e/settings.spec.ts:1-75
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/docs/tasks/M9a-report.md:1-32
+- 驗證證據:
+  - `npm run lint` → `eslint src tests e2e --max-warnings 0`；exit 0。
+  - `npm run typecheck` → `tsc --noEmit`；exit 0。
+  - `npm test` → `Test Files 23 passed (23)`、`Tests 90 passed (90)`；exit 0。
+  - `npm run build` → `444 modules transformed`、`✓ built in 104ms`；exit 0。
+  - `git diff --check` → 零輸出；`runSpeed: 32.0`、`jumpHeight: 33`、`dashSpeed: 80` 保持不變。
+  - i18n read-back：zh/en 均包含圖形、雙音軌、FPS、gamepad toast 與 keyboard/gamepad tutorial keys；`tests/i18n.test.ts` 隨 `npm test` 通過。
+- 未解決事項與風險:
+  - 依 REDLINES 未執行 `npm run e2e`；新增 `e2e/settings.spec.ts` 與既有九條 e2e（含 art/world 預算斷言）留待主控執行。
+  - 自動化環境無法模擬實體手把。手動驗證路徑：連接 standard-mapping 手把並確認連線 toast；以十字鍵/左搖桿、A、B 操作主選單與設定；開始遊戲後確認左/右搖桿、A/✕、X/□、B/○ 與 Start；分別用鍵盤和手把觸發教學確認提示切換；拔除手把確認斷線 toast。

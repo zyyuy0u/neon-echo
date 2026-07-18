@@ -1,5 +1,6 @@
 import { INPUT_ACTIONS, type InputAction } from '../systems/input/bindings';
 import type { GameSettings } from '../systems/save/SaveSystem';
+import type { GamepadMenuAction } from '../systems/input/GamepadSystem';
 import type { WarpAnchor } from '../systems/warp/WarpSystem';
 import { onLanguageChange, t } from './i18n';
 
@@ -84,6 +85,30 @@ export class MenuSystem {
   public setSettings(settings: GameSettings): void {
     this.settings = structuredClone(settings);
     if (this.current !== 'none') this.render();
+  }
+
+  public handleGamepadActions(actions: readonly GamepadMenuAction[]): void {
+    for (const action of actions) {
+      if (action === 'up' || action === 'down') {
+        this.moveFocus(action === 'up' ? -1 : 1);
+        continue;
+      }
+      if (action === 'confirm') {
+        if (document.activeElement instanceof HTMLButtonElement) {
+          document.activeElement.click();
+        }
+        continue;
+      }
+      const key = 'Escape';
+      const target =
+        document.activeElement instanceof HTMLElement &&
+        this.root.contains(document.activeElement)
+          ? document.activeElement
+          : this.panel;
+      target.dispatchEvent(
+        new KeyboardEvent('keydown', { bubbles: true, key, code: key }),
+      );
+    }
   }
 
   public dispose(): void {
@@ -243,14 +268,82 @@ export class MenuSystem {
     autoBehindHint.textContent = t('settings.autoCameraBehindHint');
     autoBehindLabel.append(autoBehind, autoBehindText, autoBehindHint);
 
-    const volume = this.createRange(
-      'settings.volume',
+    const graphicsTitle = document.createElement('h2');
+    graphicsTitle.textContent = t('settings.graphics');
+
+    const resolutionLabel = document.createElement('label');
+    resolutionLabel.textContent = t('settings.resolutionScale');
+    const resolution = document.createElement('select');
+    resolution.dataset.setting = 'resolution-scale';
+    for (const scale of [0.5, 0.75, 1] as const) {
+      const option = document.createElement('option');
+      option.value = String(scale);
+      option.textContent = `${scale * 100}%`;
+      resolution.append(option);
+    }
+    resolution.value = String(this.settings.resolutionScale);
+    resolution.addEventListener('change', () => {
+      const value = Number(resolution.value);
+      if (value === 0.5 || value === 0.75 || value === 1) {
+        this.updateSettings({ resolutionScale: value });
+      }
+    });
+    resolutionLabel.append(resolution);
+
+    const bloom = this.createToggle(
+      'settings.bloom',
+      this.settings.bloomEnabled,
+      (checked) => this.updateSettings({ bloomEnabled: checked }),
+    );
+    bloom.input.dataset.setting = 'bloom-enabled';
+
+    const bloomIntensity = this.createRange(
+      'settings.bloomIntensity',
+      0.5,
+      1.5,
+      0.05,
+      this.settings.bloomIntensity,
+      (value) => this.updateSettings({ bloomIntensity: value }),
+    );
+    bloomIntensity.input.dataset.setting = 'bloom-intensity';
+
+    const fieldOfView = this.createRange(
+      'settings.fieldOfView',
+      60,
+      100,
+      1,
+      this.settings.fieldOfView,
+      (value) => this.updateSettings({ fieldOfView: value }),
+    );
+    fieldOfView.input.dataset.setting = 'fov';
+
+    const showFps = this.createToggle(
+      'settings.showFps',
+      this.settings.showFps,
+      (checked) => this.updateSettings({ showFps: checked }),
+    );
+    showFps.input.dataset.setting = 'show-fps';
+
+    const audioTitle = document.createElement('h2');
+    audioTitle.textContent = t('settings.audio');
+    const musicVolume = this.createRange(
+      'settings.musicVolume',
       0,
       1,
       0.05,
-      this.settings.volume,
-      (value) => this.updateSettings({ volume: value }),
+      this.settings.musicVolume,
+      (value) => this.updateSettings({ musicVolume: value }),
     );
+    musicVolume.input.dataset.setting = 'music-volume';
+    const sfxVolume = this.createRange(
+      'settings.sfxVolume',
+      0,
+      1,
+      0.05,
+      this.settings.sfxVolume,
+      (value) => this.updateSettings({ sfxVolume: value }),
+    );
+    sfxVolume.input.dataset.setting = 'sfx-volume';
 
     const subtitleLabel = document.createElement('label');
     subtitleLabel.textContent = t('settings.subtitleSize');
@@ -309,8 +402,16 @@ export class MenuSystem {
       languageLabel,
       reducedLabel,
       autoBehindLabel,
-      volume.label,
       subtitleLabel,
+      graphicsTitle,
+      resolutionLabel,
+      bloom.label,
+      bloomIntensity.label,
+      fieldOfView.label,
+      showFps.label,
+      audioTitle,
+      musicVolume.label,
+      sfxVolume.label,
       bindingTitle,
       bindings,
       conflict,
@@ -329,12 +430,14 @@ export class MenuSystem {
     actions.textContent = t('controls.actions');
     const pause = document.createElement('p');
     pause.textContent = t('controls.pause');
+    const gamepad = document.createElement('p');
+    gamepad.textContent = t('controls.gamepad');
     const back = this.createButton(
       t('menu.back'),
       () => this.open('main'),
       'uiBack',
     );
-    this.panel.append(title, movement, actions, pause, back);
+    this.panel.append(title, movement, actions, pause, gamepad, back);
     back.focus();
   }
 
@@ -403,6 +506,23 @@ export class MenuSystem {
     return { label, input };
   }
 
+  private createToggle(
+    key: string,
+    checked: boolean,
+    onChange: (checked: boolean) => void,
+  ): { label: HTMLLabelElement; input: HTMLInputElement } {
+    const label = document.createElement('label');
+    label.className = 'toggle-setting';
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.checked = checked;
+    input.addEventListener('change', () => onChange(input.checked));
+    const text = document.createElement('span');
+    text.textContent = t(key);
+    label.append(input, text);
+    return { label, input };
+  }
+
   private readonly onKeyDown = (event: KeyboardEvent): void => {
     event.stopPropagation();
     if (this.rebinding && event.key !== 'Escape') {
@@ -449,6 +569,12 @@ export class MenuSystem {
       return;
     }
     event.preventDefault();
+    const direction: -1 | 1 =
+      event.key === 'ArrowUp' || (isTab && event.shiftKey) ? -1 : 1;
+    this.moveFocus(direction);
+  };
+
+  private moveFocus(direction: -1 | 1): void {
     const controls = [
       ...this.panel.querySelectorAll<HTMLElement>(
         'button:not(:disabled), input:not(:disabled), select:not(:disabled)',
@@ -458,8 +584,6 @@ export class MenuSystem {
     const currentIndex = controls.indexOf(
       document.activeElement as HTMLElement,
     );
-    const direction =
-      event.key === 'ArrowUp' || (isTab && event.shiftKey) ? -1 : 1;
     const nextIndex =
       currentIndex === -1
         ? direction === 1
@@ -468,5 +592,5 @@ export class MenuSystem {
         : (currentIndex + direction + controls.length) % controls.length;
     controls[nextIndex]?.focus();
     this.callbacks.onUiSound('uiMove');
-  };
+  }
 }

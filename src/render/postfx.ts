@@ -16,6 +16,8 @@ import { tuning } from '../core/tuning';
 export interface PostProcessing {
   render: () => void;
   resize: (width: number, height: number) => void;
+  setBloom: (enabled: boolean, intensityMultiplier: number) => void;
+  getState: () => { bloomEnabled: boolean; bloomIntensity: number };
   dispose: () => void;
 }
 
@@ -39,17 +41,30 @@ export function createPostProcessing(
     luminanceSmoothing: 0.2,
     mipmapBlur: true,
   });
-  composer.addPass(new EffectPass(camera, bloom));
+  const bloomPass = new EffectPass(camera, bloom);
+  composer.addPass(bloomPass);
+  let bloomIntensityMultiplier = 1;
 
   return {
     render: () => {
       renderer.info.reset();
-      bloom.intensity = tuning.bloomStrength;
+      bloom.intensity = tuning.bloomStrength * bloomIntensityMultiplier;
       bloom.mipmapBlurPass.radius = tuning.bloomRadius;
       bloom.luminanceMaterial.threshold = tuning.bloomThreshold;
       composer.render();
     },
     resize: (width, height) => composer.setSize(width, height),
+    setBloom: (enabled, intensityMultiplier) => {
+      bloomPass.enabled = enabled;
+      bloomIntensityMultiplier = Math.min(
+        1.5,
+        Math.max(0.5, intensityMultiplier),
+      );
+    },
+    getState: () => ({
+      bloomEnabled: bloomPass.enabled,
+      bloomIntensity: tuning.bloomStrength * bloomIntensityMultiplier,
+    }),
     dispose: () => {
       renderer.info.autoReset = previousInfoAutoReset;
       composer.dispose();

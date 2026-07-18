@@ -120,4 +120,22 @@ describe('procedural audio system', () => {
 
     expect(fake.scheduled()).toBe(0);
   });
+
+  it('keeps music and sound effects bus settings independent', () => {
+    const fake = createFakeContext();
+    const audio = new AudioSystem(0.25, 0.7, () => fake.context);
+
+    audio.unlockFromGesture();
+    expect(audio.getState()).toMatchObject({
+      musicVolume: 0.25,
+      sfxVolume: 0.7,
+      respectsVolume: true,
+    });
+
+    audio.setVolumes(0.4, 0.1);
+    expect(audio.getState()).toMatchObject({
+      musicVolume: 0.4,
+      sfxVolume: 0.1,
+    });
+  });
 });

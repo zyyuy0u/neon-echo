@@ -20,6 +20,7 @@ export class InputSystem {
   public constructor(
     private readonly canvas: HTMLCanvasElement,
     bindings: Readonly<KeyBindings> = DEFAULT_BINDINGS,
+    private readonly onInput: () => void = () => undefined,
   ) {
     this.bindings = { ...bindings };
     window.addEventListener('keydown', this.onKeyDown);
@@ -94,6 +95,7 @@ export class InputSystem {
   }
 
   private readonly onKeyDown = (event: KeyboardEvent): void => {
+    if (event.isTrusted) this.onInput();
     if (event.code === 'Space' || event.code === 'Backquote')
       event.preventDefault();
     if (!this.held.has(event.code)) this.pressed.add(event.code);
@@ -114,11 +116,13 @@ export class InputSystem {
 
   private readonly onMouseMove = (event: MouseEvent): void => {
     if (document.pointerLockElement !== this.canvas) return;
+    this.onInput();
     this.pointerX += event.movementX;
     this.pointerY += event.movementY;
   };
 
   private readonly onCanvasClick = (): void => {
+    this.onInput();
     if (document.pointerLockElement !== this.canvas) {
       void this.canvas.requestPointerLock();
     }

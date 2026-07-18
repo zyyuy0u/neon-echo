@@ -19,6 +19,8 @@ export interface Tuning {
   interactionRadius: number;
   cameraDistance: number;
   cameraSensitivity: number;
+  gamepadDeadzone: number;
+  gamepadLookSpeed: number;
   cameraFieldOfView: number;
   cameraNearPlane: number;
   cameraFarPlane: number;
@@ -80,6 +82,8 @@ export const tuning: Tuning = {
   interactionRadius: 4.5,
   cameraDistance: 5.5,
   cameraSensitivity: 0.0025,
+  gamepadDeadzone: 0.15,
+  gamepadLookSpeed: 2.4,
   cameraFieldOfView: 55,
   cameraNearPlane: 0.1,
   cameraFarPlane: 120,
