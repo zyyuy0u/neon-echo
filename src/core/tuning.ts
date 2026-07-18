@@ -64,7 +64,7 @@ export const tuning: Tuning = {
   groundAccelerationTime: 0.15,
   groundDecelerationTime: 0.1,
   airControl: 0.65,
-  jumpHeight: 22, // user 指定：原 2.2 的十倍
+  jumpHeight: 33, // user 指定：原 2.2 的十五倍
   coyoteTime: 0.12,
   jumpBufferTime: 0.1,
   gravity: 24,
