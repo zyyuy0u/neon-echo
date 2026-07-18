@@ -6,12 +6,15 @@ import {
   type RigidBody,
   type World,
 } from '@dimforge/rapier3d-compat';
-import { CapsuleGeometry, Group, Mesh, type Scene, Vector3 } from 'three';
+import { type Scene, Vector3 } from 'three';
 
 import { tuning } from '../../core/tuning';
-import { createNeonMaterial } from '../../render/materials';
-import { PALETTE } from '../../render/palette';
 import type { AbilityState } from '../abilities/AbilityState';
+import {
+  CharacterAvatar,
+  type CharacterAnimationState,
+  type CharacterAvatarInfo,
+} from './CharacterAvatar';
 import {
   createLocomotionState,
   stepLocomotion,
@@ -32,7 +35,7 @@ export class CharacterController {
   public readonly collider: Collider;
   private readonly body: RigidBody;
   private readonly controller: KinematicCharacterController;
-  private readonly visual = new Group();
+  private readonly avatar = new CharacterAvatar();
   private locomotion: LocomotionState = createLocomotionState();
   private grounded = false;
 
@@ -68,18 +71,7 @@ export class CharacterController {
     this.controller.setMaxSlopeClimbAngle(tuning.maximumSlopeAngle);
     this.controller.setMinSlopeSlideAngle(tuning.minimumSlideAngle);
 
-    const material = createNeonMaterial(PALETTE.neonMagenta, 3.2);
-    const mesh = new Mesh(
-      new CapsuleGeometry(
-        tuning.characterRadius,
-        tuning.characterHalfHeight * 2,
-        6,
-        12,
-      ),
-      material,
-    );
-    this.visual.add(mesh);
-    scene.add(this.visual);
+    scene.add(this.avatar.object);
     this.syncVisual();
   }
 
@@ -113,12 +105,17 @@ export class CharacterController {
     if (Math.abs(movement.y - desired.y) > tuning.characterControllerOffset) {
       this.locomotion.velocity.y = 0;
     }
+    this.avatar.update(
+      deltaSeconds,
+      this.getAnimationState(result),
+      this.locomotion.velocity,
+    );
     return result;
   }
 
   public syncVisual(): void {
     const position = this.body.translation();
-    this.visual.position.set(position.x, position.y, position.z);
+    this.avatar.object.position.set(position.x, position.y, position.z);
   }
 
   public getPosition(target = new Vector3()): Vector3 {
@@ -128,6 +125,14 @@ export class CharacterController {
 
   public isGrounded(): boolean {
     return this.grounded;
+  }
+
+  public triggerInteraction(): void {
+    this.avatar.triggerInteraction();
+  }
+
+  public getCharacterInfo(): CharacterAvatarInfo {
+    return this.avatar.getInfo();
   }
 
   public teleport(x: number, y: number, z: number): void {
@@ -140,16 +145,19 @@ export class CharacterController {
   }
 
   public dispose(scene: Scene): void {
-    scene.remove(this.visual);
-    this.visual.traverse((object) => {
-      if (!(object instanceof Mesh)) return;
-      object.geometry.dispose();
-      if (Array.isArray(object.material)) {
-        for (const material of object.material) material.dispose();
-      } else {
-        object.material.dispose();
-      }
-    });
+    scene.remove(this.avatar.object);
+    this.avatar.dispose();
     this.world.removeCharacterController(this.controller);
+  }
+
+  private getAnimationState(result: LocomotionResult): CharacterAnimationState {
+    if (result.dashStarted || result.state.dashRemaining > 0) return 'dash';
+    if (result.gliding) return 'glide';
+    if (!this.grounded) {
+      return result.state.velocity.y > 0 ? 'jumpRise' : 'fall';
+    }
+    return Math.hypot(result.state.velocity.x, result.state.velocity.z) > 0.05
+      ? 'run'
+      : 'idle';
   }
 }

@@ -34,6 +34,32 @@ export function createNeonMaterial(
   });
 }
 
+/**
+ * Character materials deliberately keep the same standard-material pipeline as
+ * the world. Three enables skinning automatically when these are rendered by a
+ * SkinnedMesh, so no shader or material flag is required.
+ */
+export function createSkinnedStructureMaterial(): MeshStandardMaterial {
+  return new MeshStandardMaterial({
+    name: 'CharacterStructure',
+    color: PALETTE.structureBlue,
+    emissive: PALETTE.structureBlue,
+    emissiveIntensity: 0.18,
+    metalness: 0.48,
+    roughness: 0.5,
+  });
+}
+
+export function createSkinnedNeonMaterial(
+  color: NeonColor,
+  intensity = 3.2,
+): MeshStandardMaterial {
+  const material = createNeonMaterial(color, intensity);
+  material.name =
+    color === PALETTE.neonCyan ? 'CharacterCyan' : 'CharacterMagenta';
+  return material;
+}
+
 export function createHighlightMaterial(): MeshStandardMaterial {
   return new MeshStandardMaterial({
     color: PALETTE.warningYellow,

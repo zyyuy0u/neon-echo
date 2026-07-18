@@ -275,7 +275,10 @@ async function startGame(): Promise<() => void> {
       if (locomotion.jumped) audio.play('jump');
       if (locomotion.doubleJumped) audio.play('doubleJump');
       if (locomotion.dashStarted) audio.play('dash');
-      if (input.wasActionPressed('interact')) tryInteraction();
+      if (input.wasActionPressed('interact')) {
+        character.triggerInteraction();
+        tryInteraction();
+      }
       if (input.wasPressed('Backquote')) devPanel?.toggle();
       input.endFixedStep();
 
@@ -421,6 +424,7 @@ async function startGame(): Promise<() => void> {
           return { x: position.x, y: position.y, z: position.z };
         },
         isGrounded: () => character.isGrounded(),
+        getCharacterInfo: () => character.getCharacterInfo(),
         getRenderStats: () => ({
           drawCalls: renderer.info.render.calls,
           triangles: renderer.info.render.triangles,

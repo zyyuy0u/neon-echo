@@ -6,6 +6,11 @@ interface GameplayDebugWindow extends Window {
     teleport: (x: number, y: number, z: number) => void;
     grantAbility: (ability: 'dash' | 'doubleJump' | 'glide') => boolean;
     getAbilities: () => readonly string[];
+    getCharacterInfo: () => {
+      avatarLoaded: boolean;
+      animationCount: number;
+      currentClip: string | null;
+    };
     getShardCount: () => number;
     collectNearestShard: () => string | undefined;
     getAudioState: () => {
@@ -37,6 +42,38 @@ test('uses the dash and shard collection debug hooks', async ({
       }
     ).__NEON_DEBUG__.openMenu('none'),
   );
+
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        (
+          window as unknown as GameplayDebugWindow
+        ).__NEON_DEBUG__.getCharacterInfo(),
+      ),
+    )
+    .toMatchObject({ avatarLoaded: true });
+  const idleAvatar = await page.evaluate(() =>
+    (
+      window as unknown as GameplayDebugWindow
+    ).__NEON_DEBUG__.getCharacterInfo(),
+  );
+  expect(idleAvatar.animationCount).toBeGreaterThanOrEqual(20);
+  expect(idleAvatar.currentClip).toContain('Idle');
+
+  await page.keyboard.down('KeyW');
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (
+            window as unknown as GameplayDebugWindow
+          ).__NEON_DEBUG__.getCharacterInfo().currentClip,
+      ),
+    )
+    .toContain('Run');
+  await page.waitForTimeout(1_000);
+  await page.keyboard.up('KeyW');
+
   await page.keyboard.press('KeyW');
   // 手勢解鎖與事件派發有時序落差，斷言採輪詢式。
   await expect

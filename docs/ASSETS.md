@@ -1,4 +1,5 @@
 # Asset Register
 
-| Asset | Source URL | Author | License | Local path | Notes |
-| ----- | ---------- | ------ | ------- | ---------- | ----- |
+| Asset               | Source URL                                                                                                                                                                         | Author     | License | Local path                    | Notes                                                                                                                                  |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- | ------- | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Cyberpunk Character | [Quaternius Cyberpunk Game Kit](https://quaternius.com/packs/cyberpunkgamekit.html) via [trebeljahr/quaternius-showcase mirror](https://github.com/trebeljahr/quaternius-showcase) | Quaternius | CC0 1.0 | `public/assets/character.glb` | Source chain: quaternius.com Cyberpunk Pack → github.com/trebeljahr/quaternius-showcase mirror; 4 meshes, 4 skins, 22 animation clips. |

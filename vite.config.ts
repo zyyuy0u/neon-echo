@@ -2,9 +2,7 @@ import { defineConfig } from 'vite';
 
 export default defineConfig({
   resolve: {
-    alias: {
-      three: 'three/src/Three.js',
-    },
+    alias: [{ find: /^three$/, replacement: 'three/src/Three.js' }],
   },
   plugins: [
     {

@@ -1,0 +1,25 @@
+## REPORT
+
+- 結論: BLOCKED — M7 實作與非瀏覽器驗收全數完成，但受管環境拒絕 Chromium Mach bootstrap 權限，無法在此環境完成 gameplay/art/world 瀏覽器驗收。
+- 產出:
+  - `/Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/systems/character/CharacterAvatar.ts:1-316`
+  - `/Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/systems/character/CharacterController.ts:13-162`
+  - `/Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/render/materials.ts:37-61`
+  - `/Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/main.ts:278-281`
+  - `/Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/main.ts:419-427`
+  - `/Users/zhengyuyou/Desktop/專案、系統/Site-Project/tests/avatar.test.ts:1-28`
+  - `/Users/zhengyuyou/Desktop/專案、系統/Site-Project/e2e/gameplay.spec.ts:3-75`
+  - `/Users/zhengyuyou/Desktop/專案、系統/Site-Project/docs/ASSETS.md:1-5`
+  - `/Users/zhengyuyou/Desktop/專案、系統/Site-Project/vite.config.ts:3-6`
+- 驗證證據:
+  - `npm run lint` → exit 0；`eslint src tests e2e --max-warnings 0`。
+  - `npm run typecheck` → exit 0；`tsc --noEmit`。
+  - `npm test` → exit 0；`Test Files 14 passed (14)`，`Tests 50 passed (50)`。
+  - `npm run build` → exit 0；`434 modules transformed`，`✓ built in 96ms`。
+  - GLB 直接解析 → exit 0；`animations:22`、`meshes:10`、`skinned:10`，Idle/Run/Roll/Interact 皆存在。
+  - `test -f dist/assets/character.glb` → exit 0；建置產物 870232 bytes。
+  - `rg "CapsuleGeometry|ColliderDesc.capsule" src` → Rapier collider 仍為 `CharacterController.ts:56`；可視膠囊僅存於 `CharacterAvatar.ts:136-145` 載入 fallback。
+  - `npx playwright test e2e/gameplay.spec.ts e2e/art.spec.ts e2e/world.spec.ts` → exit 1；3 項均在 0ms 瀏覽器啟動前失敗；`MachPortRendezvousServer: Permission denied (1100)`。
+- 未解決事項與風險:
+  - 需在可啟動 Playwright Chromium 的環境重跑上述三個指定 spec，以完成 avatar 動畫與 drawCalls/triangles 預算的瀏覽器實測。
+  - 依 REDLINES 未執行 `npm run e2e`，也未執行 git commit/push。
