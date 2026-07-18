@@ -28,11 +28,14 @@ import { CharacterController } from './systems/character/CharacterController';
 import { CollectibleState } from './systems/collectibles/CollectibleState';
 import { EndingState, type EndingChoice } from './systems/ending/EndingState';
 import { InputSystem } from './systems/input/InputSystem';
-import {
-  GamepadSystem,
-  type InputDevice,
-} from './systems/input/GamepadSystem';
+import { GamepadSystem, type InputDevice } from './systems/input/GamepadSystem';
 import { PuzzleState, type PuzzleId } from './systems/puzzles/PuzzleState';
+import {
+  ObjectiveTracker,
+  resolveTrackedObjective,
+  type TrackedObjective,
+} from './systems/objectives/ObjectiveTracker';
+import type { ObjectiveProgress } from './systems/objectives/objectives';
 import {
   advancePlaytime,
   clearSaveData,
@@ -53,6 +56,7 @@ import { CompassBar, type CompassTarget } from './ui/CompassBar';
 import { GameplayOverlay } from './ui/GameplayOverlay';
 import { setLanguage, t } from './ui/i18n';
 import { MenuSystem, type MenuName } from './ui/MenuSystem';
+import { getMapTarget, MapScreen, type MapScreenData } from './ui/MapScreen';
 import { WARP_ANCHORS } from './systems/warp/anchors';
 import { isWarpUnlocked, type WarpAnchor } from './systems/warp/WarpSystem';
 import { GameplayWorld } from './world/GameplayWorld';
@@ -142,11 +146,7 @@ async function startGame(): Promise<() => void> {
   let dayPhase = bootSave.dayPhase;
   let currentMood = getDayMood(dayPhase);
   scene.background = new Color(currentMood.zenith);
-  scene.fog = new Fog(
-    currentMood.fog,
-    tuning.worldFogNear,
-    tuning.worldFogFar,
-  );
+  scene.fog = new Fog(currentMood.fog, tuning.worldFogNear, tuning.worldFogFar);
   const ambientLight = new AmbientLight(
     PALETTE.neonCyan,
     currentMood.ambientIntensity,
@@ -182,6 +182,7 @@ async function startGame(): Promise<() => void> {
   });
   const character = new CharacterController(physicsWorld, scene, abilities);
   const tutorials = new TutorialSystem();
+  const objectiveTracker = new ObjectiveTracker(bootSave.objectiveTracking);
   const overlay = new GameplayOverlay();
   let inputDevice: InputDevice = 'keyboard';
   const setInputDevice = (device: InputDevice): void => {
@@ -231,6 +232,20 @@ async function startGame(): Promise<() => void> {
   let warpActive = false;
   let fanfareTimer: number | undefined;
 
+  const getObjectiveProgress = (): ObjectiveProgress => ({
+    puzzles: puzzles.getAll(),
+    abilities: abilities.getAll(),
+    shardCount: collectibles.count,
+    endingChoice: ending.getChoice() ?? null,
+  });
+
+  const getCurrentObjective = (): TrackedObjective =>
+    resolveTrackedObjective(
+      getObjectiveProgress(),
+      objectiveTracker.getSnapshot(),
+      getMapTarget,
+    );
+
   const refreshCompassTargets = (): void => {
     const targets: CompassTarget[] = WORLD_ZONES.flatMap((zone) => {
       if (!zone.landmark) return [];
@@ -269,7 +284,27 @@ async function startGame(): Promise<() => void> {
         });
       }
     }
+    const currentObjective = getCurrentObjective();
+    const trackedMapTarget = getMapTarget(currentObjective.targetId);
+    if (
+      trackedMapTarget &&
+      !targets.some((target) => target.id === trackedMapTarget.id)
+    ) {
+      targets.push({
+        id: trackedMapTarget.id,
+        labelKey: trackedMapTarget.labelKey,
+        kind: 'custom',
+        icon: trackedMapTarget.icon,
+        position: trackedMapTarget.position,
+      });
+    }
     compass.setTargets(targets);
+    compass.setTrackedTarget(currentObjective.targetId);
+    overlay.setObjective(
+      currentObjective.id,
+      currentObjective.labelKey,
+      currentObjective.mode === 'custom',
+    );
   };
 
   const discoverZoneAt = (
@@ -302,6 +337,7 @@ async function startGame(): Promise<() => void> {
       playerPosition: { x: position.x, y: position.y, z: position.z },
       settings: structuredClone(settings),
       tutorialFlags: tutorials.getFlags(),
+      objectiveTracking: objectiveTracker.getSnapshot(),
       ending: { choice: ending.getChoice() ?? null },
       playtimeSeconds,
       dayPhase,
@@ -312,6 +348,53 @@ async function startGame(): Promise<() => void> {
     if (sessionStarted) saveData(getSnapshot());
     else saveData({ ...loadSaveData(), settings: structuredClone(settings) });
   };
+
+  const getMapScreenData = (): MapScreenData => ({
+    discoveredZoneIds,
+    collectedShardIds: new Set(collectibles.getAll()),
+    puzzles: puzzles.getAll(),
+    playerPosition: character.getPosition(),
+    playerHeading: thirdPersonCamera.getCompassHeading(),
+    tracking: objectiveTracker.getSnapshot(),
+  });
+
+  const closeMap = (): void => {
+    if (!mapScreen.isOpen) return;
+    mapScreen.close();
+    overlay.setActive(true);
+    loop.setPaused(false);
+    controlsEnabled = true;
+    canvas.dataset.controls = 'ready';
+  };
+  const openMap = (): boolean => {
+    if (
+      !sessionStarted ||
+      (menu.name !== 'pause' && !controlsEnabled) ||
+      fanfareActive ||
+      warpActive ||
+      mapScreen.isOpen
+    ) {
+      return false;
+    }
+    controlsEnabled = false;
+    canvas.dataset.controls = 'locked';
+    loop.setPaused(true);
+    overlay.setActive(false);
+    menu.open('none');
+    if (document.pointerLockElement) void document.exitPointerLock();
+    mapScreen.open(getMapScreenData());
+    return true;
+  };
+  const mapScreen = new MapScreen({
+    onClose: closeMap,
+    onTrackingChange: (targetId) => {
+      objectiveTracker.setCustomTarget(targetId);
+      refreshCompassTargets();
+      mapScreen.update(getMapScreenData());
+      persist();
+    },
+  });
+  mapScreen.setReducedMotion(settings.reducedMotion);
 
   abilities.onUnlock(({ ability }) => {
     overlay.showUnlock(ability);
@@ -335,6 +418,7 @@ async function startGame(): Promise<() => void> {
     lastShardPickupPlaytime = playtimeSeconds;
     audio.play('shardPickup', { streak: shardStreak });
     audio.play('shardTick');
+    refreshCompassTargets();
     if (sessionStarted) persist();
   });
 
@@ -576,8 +660,22 @@ async function startGame(): Promise<() => void> {
     },
     render: () => {
       gamepad.update();
-      if (menu.name === 'none') {
+      if (mapScreen.isOpen) {
+        if (gamepad.consumeSelectPressed()) closeMap();
+        else {
+          const axes = gamepad.getLookAxes();
+          mapScreen.panBy(-axes.x * 9, -axes.y * 9);
+        }
+        gamepad.endFixedStep();
+      } else if (menu.name === 'none') {
         if (
+          gamepad.consumeSelectPressed() &&
+          sessionStarted &&
+          !fanfareActive &&
+          !warpActive
+        ) {
+          openMap();
+        } else if (
           gamepad.consumeStartPressed() &&
           sessionStarted &&
           !fanfareActive &&
@@ -607,6 +705,7 @@ async function startGame(): Promise<() => void> {
     character.setReducedMotion(settings.reducedMotion);
     worldBuilder.setReducedMotion(settings.reducedMotion);
     compass.setReducedMotion(settings.reducedMotion);
+    mapScreen.setReducedMotion(settings.reducedMotion);
     thirdPersonCamera.setAutoBehindEnabled(settings.autoCameraBehind);
     thirdPersonCamera.setBaseFieldOfView(settings.fieldOfView);
     const pixelRatio = getRenderPixelRatio(
@@ -633,6 +732,7 @@ async function startGame(): Promise<() => void> {
     collectibles.restore(snapshot.collectedShardIds);
     puzzles.restore(snapshot.puzzles);
     tutorials.restore(snapshot.tutorialFlags);
+    objectiveTracker.restore(snapshot.objectiveTracking);
     ending.restore(snapshot.ending.choice);
     playtimeSeconds = snapshot.playtimeSeconds;
     applyDayPhase(snapshot.dayPhase);
@@ -734,6 +834,9 @@ async function startGame(): Promise<() => void> {
       controlsEnabled = true;
       canvas.dataset.controls = 'ready';
     },
+    onMap: () => {
+      openMap();
+    },
     onMainMenu: () => {
       if (sessionStarted) persist();
       overlay.setActive(false);
@@ -756,17 +859,32 @@ async function startGame(): Promise<() => void> {
     if (
       event.code === 'Escape' &&
       menu.name === 'none' &&
+      !mapScreen.isOpen &&
       sessionStarted &&
       !fanfareActive &&
       !warpActive
     ) {
       openMenu('pause');
+    }
+  };
+  const onMapHotkey = (event: KeyboardEvent): void => {
+    if (
+      event.code === 'KeyM' &&
+      menu.name === 'none' &&
+      !mapScreen.isOpen &&
+      sessionStarted &&
+      !fanfareActive &&
+      !warpActive
+    ) {
+      event.preventDefault();
+      openMap();
     }
   };
   const onPointerLockChange = (): void => {
     if (
       document.pointerLockElement === null &&
       menu.name === 'none' &&
+      !mapScreen.isOpen &&
       sessionStarted &&
       !fanfareActive &&
       !warpActive
@@ -774,6 +892,7 @@ async function startGame(): Promise<() => void> {
       openMenu('pause');
     }
   };
+  window.addEventListener('keydown', onMapHotkey);
   window.addEventListener('keydown', onEscape);
   document.addEventListener('pointerlockchange', onPointerLockChange);
 
@@ -814,6 +933,17 @@ async function startGame(): Promise<() => void> {
           handlePuzzleProgress(puzzleId, true);
           return true;
         },
+        getObjective: () => {
+          const objective = getCurrentObjective();
+          return {
+            ...objective,
+            label:
+              objective.mode === 'custom'
+                ? t('objective.custom', { target: t(objective.labelKey) })
+                : t(objective.labelKey),
+          };
+        },
+        openMap: () => openMap(),
         teleport: (x: number, y: number, z: number) => {
           character.teleport(x, y, z);
           thirdPersonCamera.update(1 / 60);
@@ -871,6 +1001,7 @@ async function startGame(): Promise<() => void> {
     loop.stop();
     window.clearTimeout(fanfareTimer);
     window.clearInterval(autoSaveInterval);
+    window.removeEventListener('keydown', onMapHotkey);
     window.removeEventListener('keydown', onEscape);
     document.removeEventListener('pointerlockchange', onPointerLockChange);
     input.dispose();
@@ -882,6 +1013,7 @@ async function startGame(): Promise<() => void> {
     particles.dispose();
     audio.dispose();
     compass.dispose();
+    mapScreen.dispose();
     overlay.dispose();
     sky.dispose();
     window.removeEventListener('resize', resize);

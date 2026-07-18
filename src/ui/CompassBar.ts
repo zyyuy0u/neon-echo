@@ -5,7 +5,7 @@ import {
 } from '../systems/compass/projection';
 import { onLanguageChange, t } from './i18n';
 
-export type CompassTargetKind = 'landmark' | 'sanctuary' | 'core';
+export type CompassTargetKind = 'landmark' | 'sanctuary' | 'core' | 'custom';
 
 export interface CompassTarget {
   id: string;
@@ -35,6 +35,7 @@ export class CompassBar {
   private targets: readonly CompassTarget[] = [];
   private playerPosition = { x: 0, y: 0, z: 0 };
   private heading = 0;
+  private trackedTargetId: string | undefined;
   private readonly unsubscribeLanguage: () => void;
 
   public constructor() {
@@ -68,7 +69,16 @@ export class CompassBar {
       }
     }
     for (const target of targets) {
-      if (this.markers.has(target.id)) continue;
+      const existing = this.markers.get(target.id);
+      if (existing) {
+        existing.target = target;
+        existing.element.dataset.kind = target.kind;
+        const icon = existing.element.querySelector<HTMLElement>(
+          '.compass-marker-icon',
+        );
+        if (icon) icon.textContent = target.icon;
+        continue;
+      }
       const element = document.createElement('span');
       element.className = 'compass-marker';
       element.dataset.compassId = target.id;
@@ -83,7 +93,13 @@ export class CompassBar {
       this.markers.set(target.id, { element, target });
     }
     this.renderTargetLabels();
+    this.renderTrackedTarget();
     this.update(this.playerPosition, this.heading);
+  }
+
+  public setTrackedTarget(targetId: string | undefined): void {
+    this.trackedTargetId = targetId;
+    this.renderTrackedTarget();
   }
 
   public setReducedMotion(reducedMotion: boolean): void {
@@ -128,6 +144,16 @@ export class CompassBar {
       if (!element) continue;
       element.title = t(target.labelKey);
       element.setAttribute('aria-label', t(target.labelKey));
+    }
+  }
+
+  private renderTrackedTarget(): void {
+    for (const view of this.markers.values()) {
+      if (!view.target) continue;
+      const tracked = view.target.id === this.trackedTargetId;
+      view.element.classList.toggle('is-tracked', tracked);
+      view.element.dataset.tracked = String(tracked);
+      if (tracked) this.track.append(view.element);
     }
   }
 }

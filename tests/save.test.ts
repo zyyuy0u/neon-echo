@@ -51,6 +51,7 @@ describe('save system', () => {
     data.settings.language = 'en';
     data.settings.autoCameraBehind = false;
     data.tutorialFlags.jumpGap = true;
+    data.objectiveTracking.customTargetId = 'landmark-ring';
     data.ending.choice = 'awaken';
     data.playtimeSeconds = advancePlaytime(data.playtimeSeconds, 123.5);
     data.dayPhase = 0.375;
@@ -63,6 +64,9 @@ describe('save system', () => {
     expect(loadSaveData(storage).dayPhase).toBe(0.375);
     expect(loadSaveData(storage).settings.autoCameraBehind).toBe(false);
     expect(loadSaveData(storage).tutorialFlags.jumpGap).toBe(true);
+    expect(loadSaveData(storage).objectiveTracking.customTargetId).toBe(
+      'landmark-ring',
+    );
     expect(loadSaveData(storage).discoveredZoneIds).toEqual([
       'skylift',
       'spire',
@@ -139,6 +143,21 @@ describe('save system', () => {
     expect(migrated.settings.sfxVolume).toBe(0.35);
     expect(migrated.settings.resolutionScale).toBe(1);
     expect(migrated.settings).not.toHaveProperty('volume');
+  });
+
+  it('migrates v5 saves back to automatic objective tracking', () => {
+    const storage = new MemoryStorage();
+    const legacy = createDefaultSaveData() as unknown as Record<
+      string,
+      unknown
+    >;
+    legacy.version = 5;
+    delete legacy.objectiveTracking;
+    storage.setItem(SAVE_STORAGE_KEY, JSON.stringify(legacy));
+
+    expect(loadSaveData(storage).objectiveTracking).toEqual({
+      customTargetId: null,
+    });
   });
 
   it('only advances playtime for positive elapsed time', () => {

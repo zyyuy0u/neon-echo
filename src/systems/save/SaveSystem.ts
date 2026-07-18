@@ -12,8 +12,12 @@ import {
   TUTORIAL_IDS,
   type TutorialFlags,
 } from '../tutorial/TutorialSystem';
+import {
+  createDefaultObjectiveTracking,
+  type ObjectiveTrackingSnapshot,
+} from '../objectives/ObjectiveTracker';
 
-export const SAVE_VERSION = 5;
+export const SAVE_VERSION = 6;
 export const SAVE_STORAGE_KEY = 'neon-echo-save';
 
 export type SubtitleSize = 'small' | 'medium' | 'large';
@@ -51,6 +55,7 @@ export interface SaveData {
   playerPosition: SavedPosition;
   settings: GameSettings;
   tutorialFlags: TutorialFlags;
+  objectiveTracking: ObjectiveTrackingSnapshot;
   ending: { choice: EndingChoice | null };
   playtimeSeconds: number;
   dayPhase: number;
@@ -115,6 +120,7 @@ export function createDefaultSaveData(): SaveData {
     playerPosition: { x: 0, y: 1.2, z: 0 },
     settings: createDefaultSettings(),
     tutorialFlags: createDefaultTutorialFlags(),
+    objectiveTracking: createDefaultObjectiveTracking(),
     ending: { choice: null },
     playtimeSeconds: 0,
     dayPhase: 0,
@@ -204,6 +210,13 @@ function isSaveData(value: unknown): value is SaveData {
   if (!TUTORIAL_IDS.every((id) => typeof tutorialFlags[id] === 'boolean')) {
     return false;
   }
+  if (
+    !isObject(value.objectiveTracking) ||
+    (value.objectiveTracking.customTargetId !== null &&
+      typeof value.objectiveTracking.customTargetId !== 'string')
+  ) {
+    return false;
+  }
   return (
     isFiniteNumber(value.playtimeSeconds) &&
     value.playtimeSeconds >= 0 &&
@@ -225,6 +238,7 @@ export function migrateSaveData(value: unknown): SaveData | undefined {
       value.version !== 2 &&
       value.version !== 3 &&
       value.version !== 4 &&
+      value.version !== 5 &&
       value.version !== SAVE_VERSION)
   ) {
     return undefined;
@@ -239,8 +253,10 @@ export function migrateSaveData(value: unknown): SaveData | undefined {
           ...defaults,
           ...value.settings,
           autoCameraBehind: value.settings.autoCameraBehind ?? true,
-          musicVolume: value.settings.musicVolume ?? legacyVolume ?? defaults.musicVolume,
-          sfxVolume: value.settings.sfxVolume ?? legacyVolume ?? defaults.sfxVolume,
+          musicVolume:
+            value.settings.musicVolume ?? legacyVolume ?? defaults.musicVolume,
+          sfxVolume:
+            value.settings.sfxVolume ?? legacyVolume ?? defaults.sfxVolume,
           resolutionScale:
             value.settings.resolutionScale ?? defaults.resolutionScale,
           bloomEnabled: value.settings.bloomEnabled ?? defaults.bloomEnabled,
@@ -259,6 +275,8 @@ export function migrateSaveData(value: unknown): SaveData | undefined {
     settings,
     discoveredZoneIds: value.discoveredZoneIds ?? [],
     tutorialFlags: value.tutorialFlags ?? createDefaultTutorialFlags(),
+    objectiveTracking:
+      value.objectiveTracking ?? createDefaultObjectiveTracking(),
     playtimeSeconds: value.playtimeSeconds ?? 0,
     dayPhase: value.dayPhase ?? 0,
   };

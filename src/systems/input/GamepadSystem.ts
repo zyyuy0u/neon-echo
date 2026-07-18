@@ -45,7 +45,10 @@ export function applyAxisDeadzone(value: number, deadzone = 0.15): number {
   const magnitude = Math.abs(value);
   if (!Number.isFinite(magnitude) || magnitude <= deadzone) return 0;
   const safeDeadzone = Math.min(0.99, Math.max(0, deadzone));
-  return Math.sign(value) * Math.min(1, (magnitude - safeDeadzone) / (1 - safeDeadzone));
+  return (
+    Math.sign(value) *
+    Math.min(1, (magnitude - safeDeadzone) / (1 - safeDeadzone))
+  );
 }
 
 export function mapStickToVector(
@@ -54,7 +57,8 @@ export function mapStickToVector(
   deadzone = 0.15,
 ): { x: number; y: number } {
   const magnitude = Math.min(1, Math.hypot(x, y));
-  if (!Number.isFinite(magnitude) || magnitude <= deadzone) return { x: 0, y: 0 };
+  if (!Number.isFinite(magnitude) || magnitude <= deadzone)
+    return { x: 0, y: 0 };
   const scaledMagnitude = applyAxisDeadzone(magnitude, deadzone);
   return {
     x: (x / magnitude) * scaledMagnitude,
@@ -103,7 +107,8 @@ export class GamepadSystem {
     );
     const nextName = gamepad?.id;
     if (nextName !== this.connectedName) {
-      if (this.connectedName) this.callbacks.onDisconnected?.(this.connectedName);
+      if (this.connectedName)
+        this.callbacks.onDisconnected?.(this.connectedName);
       if (nextName) this.callbacks.onConnected?.(nextName);
       this.connectedName = nextName;
     }
@@ -121,7 +126,8 @@ export class GamepadSystem {
       tuning.gamepadDeadzone,
     );
 
-    const currentButtons = gamepad?.buttons.map((button) => button.pressed) ?? [];
+    const currentButtons =
+      gamepad?.buttons.map((button) => button.pressed) ?? [];
     const edges = detectButtonEdges(this.previousButtons, currentButtons);
     this.previousButtons = currentButtons;
     this.heldActions = new Set<GamepadAction>();
@@ -186,9 +192,15 @@ export class GamepadSystem {
     return this.pressedButtons.delete(9);
   }
 
+  /** Standard mapping Back/Select/View button. */
+  public consumeSelectPressed(): boolean {
+    return this.pressedButtons.delete(8);
+  }
+
   public consumeMenuActions(): GamepadMenuAction[] {
     const actions: GamepadMenuAction[] = [];
-    if (this.pressedButtons.delete(12) || this.stickUpPressed) actions.push('up');
+    if (this.pressedButtons.delete(12) || this.stickUpPressed)
+      actions.push('up');
     if (this.pressedButtons.delete(13) || this.stickDownPressed)
       actions.push('down');
     if (this.pressedButtons.delete(0)) {

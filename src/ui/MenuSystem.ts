@@ -17,6 +17,7 @@ export interface MenuCallbacks {
   onContinue: () => void;
   onNewGame: () => void;
   onResume: () => void;
+  onMap: () => void;
   onMainMenu: () => void;
   getWarpEntries: () => readonly WarpMenuEntry[];
   onWarp: (anchor: WarpAnchor) => void;
@@ -165,6 +166,7 @@ export class MenuSystem {
       this.open('none');
     });
     const warp = this.createButton(t('menu.warp'), () => this.open('warp'));
+    const map = this.createButton(t('menu.map'), () => this.callbacks.onMap());
     const settings = this.createButton(t('menu.settings'), () => {
       this.settingsOrigin = 'pause';
       this.open('settings');
@@ -173,7 +175,7 @@ export class MenuSystem {
       this.callbacks.onMainMenu();
       this.open('main');
     });
-    nav.append(resume, settings, warp, main);
+    nav.append(resume, settings, warp, map, main);
     this.panel.append(title, nav);
     resume.focus();
   }

@@ -58,6 +58,8 @@ export class GameplayOverlay {
   private readonly root = document.createElement('div');
   private readonly hud = document.createElement('div');
   private readonly abilityList = document.createElement('div');
+  private readonly objective = document.createElement('section');
+  private readonly objectiveText = document.createElement('strong');
   private readonly shardCounter = document.createElement('div');
   private readonly shardValue = document.createElement('strong');
   private readonly message = document.createElement('div');
@@ -89,6 +91,9 @@ export class GameplayOverlay {
   private steleBlip: (() => void) | undefined;
   private steleReducedMotion = false;
   private subtitleSize: SubtitleSize = 'medium';
+  private objectiveId = '';
+  private objectiveLabelKey = '';
+  private objectiveIsCustom = false;
   private readonly unsubscribeLanguage: () => void;
 
   public constructor() {
@@ -97,6 +102,10 @@ export class GameplayOverlay {
     this.hud.className = 'hud';
     this.hud.setAttribute('aria-label', t('hud.abilities'));
     this.abilityList.className = 'ability-list';
+    this.objective.className = 'objective-hud';
+    this.objective.setAttribute('role', 'status');
+    this.objective.setAttribute('aria-live', 'polite');
+    this.objective.append(this.objectiveText);
     this.shardCounter.className = 'shard-counter';
     this.shardCounter.append(this.shardValue);
     this.message.className = 'gameplay-message';
@@ -118,7 +127,7 @@ export class GameplayOverlay {
     this.warpTransition.className = 'warp-transition';
     this.warpTransition.hidden = true;
     this.warpTransition.setAttribute('aria-hidden', 'true');
-    this.hud.append(this.abilityList, this.shardCounter);
+    this.hud.append(this.objective, this.abilityList, this.shardCounter);
     this.root.append(
       this.hud,
       this.fps,
@@ -151,6 +160,14 @@ export class GameplayOverlay {
 
   public attachHudElement(element: HTMLElement): void {
     this.hud.append(element);
+  }
+
+  public setObjective(id: string, labelKey: string, custom = false): void {
+    this.objectiveId = id;
+    this.objectiveLabelKey = labelKey;
+    this.objectiveIsCustom = custom;
+    this.renderObjective();
+    this.showHudEvent();
   }
 
   public setShardCount(count: number, animate = false): void {
@@ -197,7 +214,10 @@ export class GameplayOverlay {
     this.fpsWindowStarted = now;
   }
 
-  public showToast(key: string, values: Readonly<Record<string, string>>): void {
+  public showToast(
+    key: string,
+    values: Readonly<Record<string, string>>,
+  ): void {
     window.clearTimeout(this.toastTimer);
     this.toast.textContent = t(key, values);
     this.toast.hidden = false;
@@ -298,8 +318,7 @@ export class GameplayOverlay {
 
   public isSteleTyping(): boolean {
     return (
-      !this.stele.hidden &&
-      this.steleVisibleCharacters < this.steleText.length
+      !this.stele.hidden && this.steleVisibleCharacters < this.steleText.length
     );
   }
 
@@ -415,6 +434,22 @@ export class GameplayOverlay {
       this.abilityList.append(icon);
     }
     this.setShardCount(this.shardCount);
+    this.renderObjective();
+  }
+
+  private renderObjective(): void {
+    this.objective.dataset.objectiveId = this.objectiveId;
+    this.objective.dataset.mode = this.objectiveIsCustom
+      ? 'custom'
+      : 'automatic';
+    const label = this.objectiveLabelKey ? t(this.objectiveLabelKey) : '';
+    this.objectiveText.textContent = this.objectiveIsCustom
+      ? t('objective.custom', { target: label })
+      : label;
+    this.objective.setAttribute(
+      'aria-label',
+      `${t('objective.current')} ${this.objectiveText.textContent}`,
+    );
   }
 
   private renderStele(): void {
@@ -436,8 +471,7 @@ export class GameplayOverlay {
   private startSteleTypewriter(): void {
     window.cancelAnimationFrame(this.steleFrame ?? 0);
     if (!this.currentStele) return;
-    this.steleText =
-      this.currentStele[getLanguage() === 'en' ? 'en' : 'zh'];
+    this.steleText = this.currentStele[getLanguage() === 'en' ? 'en' : 'zh'];
     this.steleBlipGroups = 0;
     this.steleStartedAt = performance.now();
     this.steleVisibleCharacters = this.steleReducedMotion

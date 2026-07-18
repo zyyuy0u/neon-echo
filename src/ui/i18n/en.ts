@@ -10,6 +10,7 @@ export const en = {
   'menu.pauseTitle': 'Signal Paused',
   'menu.resume': 'Resume',
   'menu.warp': 'Teleport',
+  'menu.map': 'World Map',
   'menu.mainMenu': 'Main Menu',
   'menu.overwriteTitle': 'Overwrite existing progress?',
   'menu.overwriteBody':
@@ -57,9 +58,9 @@ export const en = {
   'controls.actions':
     'Dash across gaps; use Interact to read steles and activate altars.',
   'controls.pause':
-    'Press ESC to pause. Every action can be remapped in Settings.',
+    'Press ESC to pause or M to open the map. Every action can be remapped in Settings.',
   'controls.gamepad':
-    'Gamepad: left stick moves, right stick controls the camera, A jumps, X dashes, and B interacts.',
+    'Gamepad: left stick moves, right stick controls the camera, A jumps, X dashes, B interacts, and Select opens the map.',
   'hud.shards': 'Echo shards',
   'hud.abilities': 'Abilities',
   'hud.fps': 'FPS {value}',
@@ -72,6 +73,25 @@ export const en = {
   'compass.sanctuary.spire': 'East Sanctuary',
   'compass.sanctuary.ring': 'West Sanctuary',
   'compass.core': 'North Core',
+  'objective.current': 'Current objective',
+  'objective.custom': 'Custom target: {target}',
+  'objective.sanctuary1': 'Reach the South Sanctuary and solve Pulse Track',
+  'objective.sanctuary2':
+    'Reach the East Sanctuary and restore the Light Bridge',
+  'objective.sanctuary3': 'Reach the West Sanctuary and cross the Wind Well',
+  'objective.coreRequirements': 'Gather 30 echo shards and open the North Core',
+  'objective.ending': 'Reach the North Core and choose the echoes’ dawn',
+  'map.title': 'World Map',
+  'map.controls':
+    'Wheel / +/- zoom · Drag / arrows pan · Tab selects icons · Enter tracks · ESC / M closes',
+  'map.cancelTracking': 'Cancel custom tracking',
+  'map.close': 'Close map',
+  'map.player': 'Player position and heading',
+  'map.shards.plaza': 'Stasis Plaza shard cluster',
+  'map.shards.skylift': 'Sky Lift shard cluster',
+  'map.shards.spire': 'Neon Spire shard cluster',
+  'map.shards.ring': 'Inverted Ring shard cluster',
+  'map.shards.chasm': 'Lumen Chasm shard cluster',
   'warp.title': 'Anchor Teleport',
   'warp.description': 'Choose an unlocked safe anchor.',
   'warp.locked': '???',

@@ -1,0 +1,31 @@
+## REPORT
+- 結論: PASS — 全螢幕 SVG 地圖、戰爭迷霧、目標追蹤/存檔、HUD/羅盤與 dev hooks 均已完成，所有允許執行的驗收指令皆 exit 0。
+- 產出:
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/ui/MapScreen.ts:1-479
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/ui/mapProjection.ts:1-70
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/systems/objectives/objectives.ts:1-88
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/systems/objectives/ObjectiveTracker.ts:1-65
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/main.ts:235-397,661-708,729-756,830-908,936-946
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/systems/save/SaveSystem.ts:15-20,48-62,96-127,213-283
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/ui/GameplayOverlay.ts:57-170,425-455
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/ui/CompassBar.ts:8-15,63-103,141-158
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/ui/MenuSystem.ts:7-21,158-180
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/systems/input/GamepadSystem.ts:191-198
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/style.css:250-319,603-771
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/ui/i18n/zh.ts:11,70-87
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/ui/i18n/en.ts:13,76-94
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/tests/map-projection.test.ts:1-55
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/tests/objectives.test.ts:1-71
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/tests/save.test.ts:45-72,148-162
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/e2e/map.spec.ts:1-75
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/docs/tasks/M9b-report.md:1-31
+- 驗證證據:
+  - `npm run lint` → `eslint src tests e2e --max-warnings 0`；exit 0。
+  - `npm run typecheck` → `tsc --noEmit`；exit 0。
+  - `npm test` → `Test Files 25 passed (25)`、`Tests 97 passed (97)`；exit 0。
+  - `npm run build` → `448 modules transformed`、`✓ built in 101ms`；exit 0。
+  - `git diff --check` → 零輸出；`git diff -- src/core/tuning.ts src/world/map` → 零輸出。
+  - `rg '選單|傳送|羅盤' src/ui --glob '!src/ui/i18n/**'` 與英文 UI literal grep → 皆 exit 1、零命中（符合 i18n 要求）。
+  - `rg -n '__NEON_DEBUG__' dist` → exit 1、零命中，`getObjective()` / `openMap()` 僅存在 dev build。
+- 未解決事項與風險:
+  - 依 REDLINES 未執行 `npm run e2e`；新增 `e2e/map.spec.ts` 與既有十條 e2e（含 art/world 預算）留待主控執行。
