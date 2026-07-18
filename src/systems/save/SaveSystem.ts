@@ -13,7 +13,7 @@ import {
   type TutorialFlags,
 } from '../tutorial/TutorialSystem';
 
-export const SAVE_VERSION = 3;
+export const SAVE_VERSION = 4;
 export const SAVE_STORAGE_KEY = 'neon-echo-save';
 
 export type SubtitleSize = 'small' | 'medium' | 'large';
@@ -46,6 +46,7 @@ export interface SaveData {
   tutorialFlags: TutorialFlags;
   ending: { choice: EndingChoice | null };
   playtimeSeconds: number;
+  dayPhase: number;
 }
 
 const PUZZLE_IDS: readonly PuzzleId[] = [
@@ -103,6 +104,7 @@ export function createDefaultSaveData(): SaveData {
     tutorialFlags: createDefaultTutorialFlags(),
     ending: { choice: null },
     playtimeSeconds: 0,
+    dayPhase: 0,
   };
 }
 
@@ -178,6 +180,9 @@ function isSaveData(value: unknown): value is SaveData {
   return (
     isFiniteNumber(value.playtimeSeconds) &&
     value.playtimeSeconds >= 0 &&
+    isFiniteNumber(value.dayPhase) &&
+    value.dayPhase >= 0 &&
+    value.dayPhase < 1 &&
     isObject(value.ending) &&
     (value.ending.choice === null ||
       value.ending.choice === 'awaken' ||
@@ -191,6 +196,7 @@ export function migrateSaveData(value: unknown): SaveData | undefined {
     !isObject(value) ||
     (value.version !== 1 &&
       value.version !== 2 &&
+      value.version !== 3 &&
       value.version !== SAVE_VERSION)
   ) {
     return undefined;
@@ -208,6 +214,7 @@ export function migrateSaveData(value: unknown): SaveData | undefined {
     discoveredZoneIds: value.discoveredZoneIds ?? [],
     tutorialFlags: value.tutorialFlags ?? createDefaultTutorialFlags(),
     playtimeSeconds: value.playtimeSeconds ?? 0,
+    dayPhase: value.dayPhase ?? 0,
   };
   return isSaveData(candidate) ? structuredClone(candidate) : undefined;
 }

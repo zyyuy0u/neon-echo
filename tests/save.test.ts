@@ -53,12 +53,14 @@ describe('save system', () => {
     data.tutorialFlags.jumpGap = true;
     data.ending.choice = 'awaken';
     data.playtimeSeconds = advancePlaytime(data.playtimeSeconds, 123.5);
+    data.dayPhase = 0.375;
 
     saveData(data, storage);
 
     expect(loadSaveData(storage)).toEqual(data);
     expect(loadSaveData(storage).version).toBe(SAVE_VERSION);
     expect(loadSaveData(storage).playtimeSeconds).toBe(123.5);
+    expect(loadSaveData(storage).dayPhase).toBe(0.375);
     expect(loadSaveData(storage).settings.autoCameraBehind).toBe(false);
     expect(loadSaveData(storage).tutorialFlags.jumpGap).toBe(true);
     expect(loadSaveData(storage).discoveredZoneIds).toEqual([
@@ -99,6 +101,19 @@ describe('save system', () => {
     storage.setItem(SAVE_STORAGE_KEY, JSON.stringify(legacy));
 
     expect(loadSaveData(storage).discoveredZoneIds).toEqual([]);
+  });
+
+  it('migrates v3 saves with the sunset phase as their baseline', () => {
+    const storage = new MemoryStorage();
+    const legacy = createDefaultSaveData() as unknown as Record<
+      string,
+      unknown
+    >;
+    legacy.version = 3;
+    delete legacy.dayPhase;
+    storage.setItem(SAVE_STORAGE_KEY, JSON.stringify(legacy));
+
+    expect(loadSaveData(storage).dayPhase).toBe(0);
   });
 
   it('only advances playtime for positive elapsed time', () => {

@@ -9,6 +9,8 @@ const FOV_EASE_SECONDS = 0.2;
 const OPENING_HOLD_SECONDS = 1.5;
 const OPENING_CAMERA_SECONDS = 2;
 const OPENING_PITCH = 0.95;
+const STELE_FOCUS_SECONDS = 0.4;
+const STELE_FOCUS_PUSH = 0.08;
 
 export interface CameraMotionState {
   horizontalVelocity: Readonly<{ x: number; z: number }>;
@@ -50,6 +52,8 @@ export class ThirdPersonCamera {
   private landingDipAmplitude = 0;
   private landingDipElapsed = 0;
   private openingElapsed: number | undefined;
+  private steleFocusTarget = 0;
+  private steleFocusBlend = 0;
 
   public constructor(
     private readonly world: World,
@@ -96,6 +100,11 @@ export class ThirdPersonCamera {
     this.landingDipElapsed = 0;
   }
 
+  public setSteleFocus(open: boolean, reducedMotion: boolean): void {
+    this.steleFocusTarget = open && !reducedMotion ? 1 : 0;
+    if (reducedMotion) this.steleFocusBlend = 0;
+  }
+
   public getMovementDirection(axes: { x: number; y: number }): {
     x: number;
     z: number;
@@ -124,6 +133,7 @@ export class ThirdPersonCamera {
     this.updateOpening(deltaSeconds);
     this.updateAutoBehind(deltaSeconds, motion.horizontalVelocity);
     this.updateFov(deltaSeconds, motion.sprinting);
+    this.updateSteleFocus(deltaSeconds);
 
     this.character.getPosition(this.target);
     this.target.y += tuning.cameraHeight;
@@ -142,10 +152,13 @@ export class ThirdPersonCamera {
         (this.target.y - this.followedTarget.y) * verticalBlend;
     }
 
-    const horizontalDistance = Math.cos(this.pitch) * tuning.cameraDistance;
+    const focusDistance =
+      tuning.cameraDistance *
+      (1 - STELE_FOCUS_PUSH * smoothstep(this.steleFocusBlend));
+    const horizontalDistance = Math.cos(this.pitch) * focusDistance;
     this.desired.set(
       this.followedTarget.x + Math.sin(this.yaw) * horizontalDistance,
-      this.followedTarget.y + Math.sin(this.pitch) * tuning.cameraDistance,
+      this.followedTarget.y + Math.sin(this.pitch) * focusDistance,
       this.followedTarget.z + Math.cos(this.yaw) * horizontalDistance,
     );
 
@@ -245,5 +258,13 @@ export class ThirdPersonCamera {
       this.pitch = tuning.cameraInitialPitch;
       this.openingElapsed = undefined;
     }
+  }
+
+  private updateSteleFocus(deltaSeconds: number): void {
+    const step = deltaSeconds / STELE_FOCUS_SECONDS;
+    this.steleFocusBlend =
+      this.steleFocusTarget > this.steleFocusBlend
+        ? Math.min(this.steleFocusTarget, this.steleFocusBlend + step)
+        : Math.max(this.steleFocusTarget, this.steleFocusBlend - step);
   }
 }

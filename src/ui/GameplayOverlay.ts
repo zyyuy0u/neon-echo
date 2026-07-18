@@ -6,6 +6,7 @@ import type {
   TutorialId,
 } from '../systems/tutorial/TutorialSystem';
 import type { Ability } from '../world/map/types';
+import { getVisibleCharacterCount } from '../systems/narrative/typewriter';
 import { getLanguage, onLanguageChange, t } from './i18n';
 
 const ABILITIES: readonly Ability[] = ['dash', 'doubleJump', 'glide'];
@@ -71,6 +72,13 @@ export class GameplayOverlay {
   private openingTimer: number | undefined;
   private warpTimers: number[] = [];
   private currentStele: SteleContent | undefined;
+  private steleText = '';
+  private steleVisibleCharacters = 0;
+  private steleStartedAt = 0;
+  private steleFrame: number | undefined;
+  private steleBlipGroups = 0;
+  private steleBlip: (() => void) | undefined;
+  private steleReducedMotion = false;
   private subtitleSize: SubtitleSize = 'medium';
   private readonly unsubscribeLanguage: () => void;
 
@@ -108,7 +116,7 @@ export class GameplayOverlay {
     this.renderHud();
     this.unsubscribeLanguage = onLanguageChange(() => {
       this.renderHud();
-      if (this.currentStele) this.renderStele();
+      if (this.currentStele) this.startSteleTypewriter();
     });
   }
 
@@ -220,17 +228,56 @@ export class GameplayOverlay {
     });
   }
 
-  public showStele(content: SteleContent): void {
+  public showStele(
+    content: SteleContent,
+    reducedMotion: boolean,
+    onBlip: () => void,
+  ): void {
     this.currentStele = content;
-    this.renderStele();
+    this.steleReducedMotion = reducedMotion;
+    this.steleBlip = onBlip;
+    this.startSteleTypewriter();
     this.stele.hidden = false;
     this.showHudEvent();
   }
 
+  public isSteleTyping(): boolean {
+    return (
+      !this.stele.hidden &&
+      this.steleVisibleCharacters < this.steleText.length
+    );
+  }
+
+  public isSteleOpen(): boolean {
+    return !this.stele.hidden;
+  }
+
+  public setReducedMotion(reducedMotion: boolean): void {
+    this.steleReducedMotion = reducedMotion;
+    if (reducedMotion) this.skipStele();
+  }
+
+  public skipStele(): boolean {
+    if (!this.isSteleTyping()) return false;
+    this.steleVisibleCharacters = getVisibleCharacterCount(
+      this.steleText,
+      0,
+      true,
+    );
+    window.cancelAnimationFrame(this.steleFrame ?? 0);
+    this.steleFrame = undefined;
+    this.renderSteleText();
+    return true;
+  }
+
   public closeStele(): boolean {
-    if (this.stele.hidden) return false;
+    if (this.stele.hidden || this.isSteleTyping()) return false;
+    window.cancelAnimationFrame(this.steleFrame ?? 0);
+    this.steleFrame = undefined;
     this.stele.hidden = true;
     this.currentStele = undefined;
+    this.steleText = '';
+    this.steleBlip = undefined;
     return true;
   }
 
@@ -291,6 +338,7 @@ export class GameplayOverlay {
     window.clearTimeout(this.hideTimer);
     window.clearTimeout(this.messageTimer);
     window.clearTimeout(this.openingTimer);
+    window.cancelAnimationFrame(this.steleFrame ?? 0);
     for (const timer of this.warpTimers) window.clearTimeout(timer);
     this.unsubscribeLanguage();
     this.root.remove();
@@ -319,11 +367,55 @@ export class GameplayOverlay {
     const title = document.createElement('h2');
     title.textContent = t('stele.title');
     const text = document.createElement('p');
+    text.dataset.fullText = this.steleText;
+    text.dataset.typing = String(this.isSteleTyping());
     text.lang = getLanguage();
-    text.textContent = this.currentStele[getLanguage() === 'en' ? 'en' : 'zh'];
+    text.textContent = this.steleText.slice(0, this.steleVisibleCharacters);
     const hint = document.createElement('small');
     hint.textContent = t('stele.close');
     this.stele.append(title, text, hint);
+  }
+
+  private startSteleTypewriter(): void {
+    window.cancelAnimationFrame(this.steleFrame ?? 0);
+    if (!this.currentStele) return;
+    this.steleText =
+      this.currentStele[getLanguage() === 'en' ? 'en' : 'zh'];
+    this.steleBlipGroups = 0;
+    this.steleStartedAt = performance.now();
+    this.steleVisibleCharacters = this.steleReducedMotion
+      ? this.steleText.length
+      : 0;
+    this.renderStele();
+    if (this.steleReducedMotion) {
+      this.steleBlip?.();
+      return;
+    }
+    const update = (now: number): void => {
+      this.steleVisibleCharacters = getVisibleCharacterCount(
+        this.steleText,
+        now - this.steleStartedAt,
+      );
+      const blipGroups = Math.floor(this.steleVisibleCharacters / 3);
+      while (this.steleBlipGroups < blipGroups) {
+        this.steleBlip?.();
+        this.steleBlipGroups += 1;
+      }
+      this.renderSteleText();
+      if (this.steleVisibleCharacters < this.steleText.length) {
+        this.steleFrame = window.requestAnimationFrame(update);
+      } else {
+        this.steleFrame = undefined;
+      }
+    };
+    this.steleFrame = window.requestAnimationFrame(update);
+  }
+
+  private renderSteleText(): void {
+    const text = this.stele.querySelector<HTMLParagraphElement>('p');
+    if (!text) return;
+    text.textContent = this.steleText.slice(0, this.steleVisibleCharacters);
+    text.dataset.typing = String(this.isSteleTyping());
   }
 
   private showHudEvent(): void {

@@ -1,0 +1,28 @@
+## REPORT
+- 結論: PASS — M8c 天色循環、碑文演出、選單動效與結局波次均已實作，所有允許執行的驗收指令均 exit 0。
+- 產出:
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/systems/mood/dayCycle.ts:1-105
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/render/sky.ts:20-22,177-188
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/systems/save/SaveSystem.ts:16-49,180-217
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/main.ts:134-171,363-398,432-498,563-566,748-772
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/systems/narrative/typewriter.ts:1-17
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/ui/GameplayOverlay.ts:231-280,367-414
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/systems/camera/ThirdPersonCamera.ts:103-106,145-162,263-270
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/ui/MenuSystem.ts:64-74
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/style.css:521-579,628-631,774-807,842-851
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/systems/ending/waves.ts:1-36
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/render/particles.ts:241-271,400-438,542-549
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/systems/audio/AudioSystem.ts:17,137-143,401-461
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/tests/mood.test.ts:1-56
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/tests/save.test.ts:45-67,104-117
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/tests/typewriter.test.ts:1-25
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/tests/ending-waves.test.ts:1-41
+  - /Users/zhengyuyou/Desktop/專案、系統/Site-Project/e2e/mood.spec.ts:1-81
+- 驗證證據:
+  - `npm run lint` → `eslint src tests e2e --max-warnings 0`; exit 0。
+  - `npm run typecheck` → `tsc --noEmit`; exit 0。
+  - `npm test` → `Test Files 21 passed (21)`; `Tests 84 passed (84)`; exit 0。
+  - `npm run build` → `442 modules transformed`; `✓ built in 101ms`; exit 0。
+  - 減少動態 read-back：/Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/ui/GameplayOverlay.ts:255-258（文字直接補完）、/Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/systems/camera/ThirdPersonCamera.ts:103-106（不推近）、/Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/style.css:842-851（選單粒子靜止）、/Users/zhengyuyou/Desktop/專案、系統/Site-Project/tests/ending-waves.test.ts:31-40（2 波/1.5s）。
+- 未解決事項與風險:
+  - 依 REDLINES 未執行 `npm run e2e`；新增 `e2e/mood.spec.ts` 與既有八條 e2e 留待主控執行。

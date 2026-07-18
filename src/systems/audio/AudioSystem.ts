@@ -14,6 +14,7 @@ export const AUDIO_EVENTS = [
   'uiConfirm',
   'uiBack',
   'shardTick',
+  'steleBlip',
   'endingTrigger',
 ] as const;
 
@@ -131,6 +132,13 @@ const TONES: Readonly<Record<AudioEvent, Tone>> = {
     endFrequency: 920,
     duration: 0.045,
     gain: 0.045,
+    wave: 'sine',
+  },
+  steleBlip: {
+    frequency: 210,
+    endFrequency: 236,
+    duration: 0.045,
+    gain: 0.035,
     wave: 'sine',
   },
   endingTrigger: {
@@ -423,6 +431,27 @@ export class AudioSystem {
         this.musicBus,
       );
     }
+  }
+
+  public playEndingWave(
+    choice: 'awaken' | 'rest',
+    waveIndex: number,
+  ): void {
+    if (!this.context || !this.sfxBus || this.volume === 0) return;
+    const index = Math.max(0, Math.floor(waveIndex));
+    const semitones = choice === 'awaken' ? index * 4 : -index * 3;
+    const frequency = 196 * 2 ** (semitones / 12);
+    this.scheduleTone(
+      {
+        frequency,
+        endFrequency: frequency * (choice === 'awaken' ? 1.5 : 0.72),
+        duration: 0.7,
+        gain: 0.055 + index * 0.018,
+        wave: choice === 'awaken' ? 'triangle' : 'sine',
+      },
+      this.context.currentTime,
+      this.sfxBus,
+    );
   }
 
   public getState(): AudioState {

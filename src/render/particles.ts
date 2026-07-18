@@ -14,6 +14,10 @@ import {
 } from 'three';
 
 import type { EndingChoice } from '../systems/ending/EndingState';
+import {
+  getEndingAnimationConfig,
+  getEndingWaveIndex,
+} from '../systems/ending/waves';
 import { WORLD_ZONES } from '../world/map/graph';
 import { PALETTE } from './palette';
 
@@ -92,6 +96,7 @@ function seededUnit(seed: number): number {
 export function createParticleSystem(
   scene: Scene,
   reducedMotion = false,
+  onEndingWave?: (choice: EndingChoice, waveIndex: number) => void,
 ): ParticleSystem {
   const root = new Group();
   root.name = 'procedural-particles';
@@ -236,6 +241,9 @@ export function createParticleSystem(
       z: platform.position[2],
     })),
   );
+  const maximumEndingLightDistance = Math.max(
+    ...lightPositions.map((position) => Math.hypot(position.x, position.z - 350)),
+  );
   const endingLightGeometry = new OctahedronGeometry(0.42, 0);
   const endingLightMaterial = new MeshBasicMaterial({
     color: PALETTE.neonCyan,
@@ -262,6 +270,7 @@ export function createParticleSystem(
   let motionReduced = reducedMotion;
   let endingChoice: EndingChoice | undefined;
   let endingElapsed = 0;
+  let emittedEndingWaves = 0;
 
   const updateDust = (): void => {
     dust.count = density.dust;
@@ -390,19 +399,37 @@ export function createParticleSystem(
 
   const updateEndingLights = (deltaSeconds: number): void => {
     if (endingChoice) endingElapsed += deltaSeconds;
+    const config = getEndingAnimationConfig(motionReduced);
+    const waveDuration = config.durationSeconds / config.waveCount;
+    if (endingChoice) {
+      const reachedWaves = Math.min(
+        config.waveCount,
+        Math.floor(endingElapsed / waveDuration) + 1,
+      );
+      while (emittedEndingWaves < reachedWaves) {
+        onEndingWave?.(endingChoice, emittedEndingWaves);
+        emittedEndingWaves += 1;
+      }
+    }
     lightPositions.forEach((position, index) => {
       const distance = Math.hypot(position.x, position.z - 350);
-      const delay = distance / 110;
       let scale = 0.18;
-      if (endingChoice === 'awaken') {
-        const wave = Math.max(0, Math.min(1, (endingElapsed - delay) / 0.9));
-        scale = 0.18 + wave * 2.2;
-      } else if (endingChoice === 'rest') {
-        const fade = Math.max(
-          0,
-          Math.min(1, (endingElapsed - delay * 0.35) / 3),
+      if (endingChoice) {
+        const waveIndex = getEndingWaveIndex(
+          endingChoice,
+          distance,
+          maximumEndingLightDistance,
+          config.waveCount,
         );
-        scale = 0.18 * (1 - fade);
+        const progress = Math.max(
+          0,
+          Math.min(1, (endingElapsed - waveIndex * waveDuration) / waveDuration),
+        );
+        const eased = progress * progress * (3 - 2 * progress);
+        scale =
+          endingChoice === 'awaken'
+            ? 0.18 + eased * 2.2
+            : 0.18 * (1 - eased);
       }
       dummy.position.set(position.x, position.y, position.z);
       dummy.rotation.set(0, elapsedSeconds * 0.6 + index, 0);
@@ -515,6 +542,7 @@ export function createParticleSystem(
     triggerEnding: (choice) => {
       endingChoice = choice;
       endingElapsed = 0;
+      emittedEndingWaves = 0;
       endingLightMaterial.color.set(
         choice === 'awaken' ? PALETTE.warningYellow : PALETTE.neonMagenta,
       );

@@ -15,9 +15,11 @@ import {
 } from 'three';
 
 import { PALETTE } from './palette';
+import type { DayMood } from '../systems/mood/dayCycle';
 
 export interface SynthwaveSky {
   update: (deltaSeconds: number, cameraPosition: Vector3) => void;
+  setMood: (mood: Readonly<DayMood>) => void;
   dispose: () => void;
 }
 
@@ -171,6 +173,17 @@ export function createSynthwaveSky(scene: Scene): SynthwaveSky {
       sunMaterial.uniforms.uTime!.value = elapsedSeconds;
       starMaterial.uniforms.uTime!.value = elapsedSeconds;
       group.position.set(cameraPosition.x, 0, cameraPosition.z);
+    },
+    setMood: (mood) => {
+      skyMaterial.uniforms.uZenith!.value.set(mood.zenith);
+      skyMaterial.uniforms.uRose!.value.set(mood.rose);
+      skyMaterial.uniforms.uHorizon!.value.set(mood.horizon);
+      sunMaterial.uniforms.uOrange!.value
+        .set(mood.horizon)
+        .multiplyScalar(2.5 * mood.sunIntensity);
+      sunMaterial.uniforms.uMagenta!.value
+        .set(mood.rose)
+        .multiplyScalar(1.8 * mood.sunIntensity);
     },
     dispose: () => {
       scene.remove(group);

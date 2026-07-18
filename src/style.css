@@ -526,8 +526,43 @@ body {
     radial-gradient(circle at 75% 20%, #c73866, transparent 46%);
 }
 
+#menu-layer::before,
+#menu-layer::after {
+  position: absolute;
+  inset: -12%;
+  background-image:
+    radial-gradient(circle, rgb(0 229 255 / 48%) 0 1px, transparent 2px),
+    radial-gradient(circle, rgb(255 46 196 / 42%) 0 1.5px, transparent 2.5px),
+    radial-gradient(circle, rgb(255 211 25 / 30%) 0 1px, transparent 2px);
+  background-position:
+    0 0,
+    3.5rem 5rem,
+    8rem 2rem;
+  background-size:
+    9rem 11rem,
+    13rem 15rem,
+    17rem 19rem;
+  content: '';
+  opacity: 0;
+  pointer-events: none;
+}
+
+#menu-layer[data-menu='main']::before,
+#menu-layer[data-menu='main']::after {
+  opacity: 0.72;
+  animation: menu-particle-drift 24s linear infinite alternate;
+}
+
+#menu-layer[data-menu='main']::after {
+  opacity: 0.42;
+  transform: scale(1.15) rotate(8deg);
+  animation-duration: 34s;
+  animation-direction: alternate-reverse;
+}
+
 .menu-panel {
   position: relative;
+  z-index: 1;
   width: min(36rem, 100%);
   max-height: calc(100vh - 2rem);
   padding: clamp(1.4rem, 4vw, 2.5rem);
@@ -538,6 +573,10 @@ body {
     0 0 30px rgb(0 229 255 / 32%),
     inset 0 0 28px rgb(255 46 196 / 12%);
   color: #fff;
+}
+
+.menu-panel.is-opening {
+  animation: menu-panel-enter 240ms ease-out both;
 }
 
 .menu-panel::before {
@@ -584,6 +623,11 @@ body {
   padding: 0.65rem 1rem;
   cursor: pointer;
   letter-spacing: 0.06em;
+}
+
+.menu-panel button:not(:disabled):hover,
+.menu-panel button:not(:disabled):focus-visible {
+  animation: menu-focus-glow 1.6s ease-in-out infinite alternate;
 }
 
 .menu-panel button:disabled {
@@ -727,6 +771,40 @@ body {
   }
 }
 
+@keyframes menu-panel-enter {
+  from {
+    opacity: 0;
+    transform: translateX(2.2rem);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes menu-focus-glow {
+  from {
+    box-shadow: 0 0 8px rgb(0 229 255 / 36%);
+  }
+
+  to {
+    box-shadow:
+      0 0 18px rgb(0 229 255 / 72%),
+      inset 0 0 12px rgb(255 46 196 / 24%);
+  }
+}
+
+@keyframes menu-particle-drift {
+  from {
+    transform: translate3d(-1.5rem, 1rem, 0);
+  }
+
+  to {
+    transform: translate3d(2rem, -2.5rem, 0);
+  }
+}
+
 @media (max-width: 36rem) {
   .settings-grid > label {
     grid-template-columns: 1fr;
@@ -759,4 +837,16 @@ body {
 
 .reduced-motion .opening-sequence.is-reduced {
   animation-duration: 500ms !important;
+}
+
+.reduced-motion #menu-layer::before,
+.reduced-motion #menu-layer::after {
+  animation: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #menu-layer::before,
+  #menu-layer::after {
+    animation: none !important;
+  }
 }

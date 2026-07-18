@@ -65,9 +65,13 @@ export class MenuSystem {
   public open(name: MenuName): void {
     this.current = name;
     this.rebinding = undefined;
+    this.root.dataset.menu = name;
     this.root.hidden = name === 'none';
     if (name !== 'none') {
       this.render();
+      this.panel.classList.remove('is-opening');
+      void this.panel.offsetWidth;
+      this.panel.classList.add('is-opening');
     } else if (
       document.activeElement instanceof HTMLElement &&
       this.root.contains(document.activeElement)

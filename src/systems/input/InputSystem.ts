@@ -41,6 +41,10 @@ export class InputSystem {
     return this.released.has(code);
   }
 
+  public hasAnyPressed(): boolean {
+    return this.pressed.size > 0;
+  }
+
   public getMovementAxes(): { x: number; y: number } {
     const x =
       Number(this.isActionHeld('moveRight')) -

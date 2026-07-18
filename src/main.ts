@@ -16,6 +16,11 @@ import { createParticleSystem } from './render/particles';
 import { createPostProcessing } from './render/postfx';
 import { createSynthwaveSky } from './render/sky';
 import { ThirdPersonCamera } from './systems/camera/ThirdPersonCamera';
+import {
+  advanceDayPhase,
+  getDayMood,
+  normalizeDayPhase,
+} from './systems/mood/dayCycle';
 import { AbilityState } from './systems/abilities/AbilityState';
 import { AudioSystem } from './systems/audio/AudioSystem';
 import { CharacterController } from './systems/character/CharacterController';
@@ -129,14 +134,21 @@ async function startGame(): Promise<() => void> {
     DEFAULT_CAMERA_SENSITIVITY * settings.mouseSensitivity;
 
   const scene = new Scene();
-  scene.background = new Color(PALETTE.nightSky);
+  let dayPhase = bootSave.dayPhase;
+  let currentMood = getDayMood(dayPhase);
+  scene.background = new Color(currentMood.zenith);
   scene.fog = new Fog(
-    PALETTE.nightSky,
+    currentMood.fog,
     tuning.worldFogNear,
     tuning.worldFogFar,
   );
-  scene.add(new AmbientLight(PALETTE.neonCyan, 2.1));
+  const ambientLight = new AmbientLight(
+    PALETTE.neonCyan,
+    currentMood.ambientIntensity,
+  );
+  scene.add(ambientLight);
   const sky = createSynthwaveSky(scene);
+  sky.setMood(currentMood);
 
   const renderer = new WebGLRenderer({ canvas, antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -150,7 +162,11 @@ async function startGame(): Promise<() => void> {
   const collectibles = new CollectibleState(shardPlacements);
   const audio = new AudioSystem(settings.volume);
   audio.bindGestureUnlock(window);
-  const particles = createParticleSystem(scene, settings.reducedMotion);
+  const particles = createParticleSystem(
+    scene,
+    settings.reducedMotion,
+    (choice, waveIndex) => audio.playEndingWave(choice, waveIndex),
+  );
   const worldBuilder = new WorldBuilder(scene, physicsWorld);
   let handlePuzzleProgress = (_id: PuzzleId, completed: boolean): void =>
     audio.play(completed ? 'puzzleComplete' : 'puzzleProgress');
@@ -264,6 +280,7 @@ async function startGame(): Promise<() => void> {
       tutorialFlags: tutorials.getFlags(),
       ending: { choice: ending.getChoice() ?? null },
       playtimeSeconds,
+      dayPhase,
     };
   };
 
@@ -343,8 +360,26 @@ async function startGame(): Promise<() => void> {
     persist();
   };
 
+  const applyDayPhase = (phase: number): void => {
+    dayPhase = normalizeDayPhase(phase);
+    currentMood = getDayMood(dayPhase);
+    sky.setMood(currentMood);
+    if (scene.background instanceof Color) {
+      scene.background.set(currentMood.zenith);
+    }
+    if (scene.fog instanceof Fog) scene.fog.color.set(currentMood.fog);
+    ambientLight.intensity = currentMood.ambientIntensity;
+  };
+
   const tryInteraction = (): void => {
-    if (overlay.closeStele()) return;
+    if (overlay.isSteleTyping()) {
+      overlay.skipStele();
+      return;
+    }
+    if (overlay.closeStele()) {
+      thirdPersonCamera.setSteleFocus(false, settings.reducedMotion);
+      return;
+    }
     const position = character.getPosition();
     const nearbyStele = stelePlacements.find((placement) => {
       const [x, y, z] = placement.position;
@@ -353,7 +388,10 @@ async function startGame(): Promise<() => void> {
     if (nearbyStele) {
       const content = STELES.find((entry) => entry.id === nearbyStele.id);
       if (content) {
-        overlay.showStele(content);
+        overlay.showStele(content, settings.reducedMotion, () =>
+          audio.play('steleBlip'),
+        );
+        thirdPersonCamera.setSteleFocus(true, settings.reducedMotion);
         audio.play('steleOpen');
         readSteleIds.add(content.id);
         persist();
@@ -394,15 +432,23 @@ async function startGame(): Promise<() => void> {
     update: (fixedDeltaSeconds) => {
       const pointerDelta = input.consumePointerDelta();
       if (controlsEnabled) thirdPersonCamera.applyPointerDelta(pointerDelta);
+      const steleSkipped =
+        overlay.isSteleTyping() && input.hasAnyPressed()
+          ? overlay.skipStele()
+          : false;
       const movementAxes = controlsEnabled
         ? input.getMovementAxes()
         : { x: 0, y: 0 };
       const move = thirdPersonCamera.getMovementDirection(movementAxes);
-      const jumpPressed = controlsEnabled && input.wasActionPressed('jump');
+      const jumpPressed =
+        controlsEnabled && !steleSkipped && input.wasActionPressed('jump');
       const jumpReleased = controlsEnabled && input.wasActionReleased('jump');
-      const dashPressed = controlsEnabled && input.wasActionPressed('dash');
+      const dashPressed =
+        controlsEnabled && !steleSkipped && input.wasActionPressed('dash');
       const interactPressed =
-        controlsEnabled && input.wasActionPressed('interact');
+        controlsEnabled &&
+        !steleSkipped &&
+        input.wasActionPressed('interact');
       const positionBeforeMove = character.getPosition();
       const locomotion = character.update(fixedDeltaSeconds, {
         move,
@@ -428,7 +474,7 @@ async function startGame(): Promise<() => void> {
         overlay.dismissTutorial(activeTutorial.id);
         activeTutorial = undefined;
       }
-      if (input.wasPressed('Backquote')) devPanel?.toggle();
+      if (!steleSkipped && input.wasPressed('Backquote')) devPanel?.toggle();
       input.endFixedStep();
 
       physicsWorld.timestep = fixedDeltaSeconds;
@@ -449,6 +495,7 @@ async function startGame(): Promise<() => void> {
       );
       if (sessionStarted) {
         playtimeSeconds = advancePlaytime(playtimeSeconds, fixedDeltaSeconds);
+        applyDayPhase(advanceDayPhase(dayPhase, fixedDeltaSeconds));
       }
       collectibles.collectNearest(position, tuning.shardPickupRadius);
       gameplayWorld.update(fixedDeltaSeconds, position);
@@ -491,12 +538,17 @@ async function startGame(): Promise<() => void> {
     canvas.setAttribute('aria-label', t('game.canvasLabel'));
     input.setBindings(settings.bindings);
     overlay.setSubtitleSize(settings.subtitleSize);
+    overlay.setReducedMotion(settings.reducedMotion);
     audio.setVolume(settings.volume);
     particles.setReducedMotion(settings.reducedMotion);
     character.setReducedMotion(settings.reducedMotion);
     worldBuilder.setReducedMotion(settings.reducedMotion);
     compass.setReducedMotion(settings.reducedMotion);
     thirdPersonCamera.setAutoBehindEnabled(settings.autoCameraBehind);
+    thirdPersonCamera.setSteleFocus(
+      overlay.isSteleOpen(),
+      settings.reducedMotion,
+    );
     tuning.cameraSensitivity =
       DEFAULT_CAMERA_SENSITIVITY * settings.mouseSensitivity;
     applyReducedMotion(settings.reducedMotion);
@@ -511,6 +563,7 @@ async function startGame(): Promise<() => void> {
     tutorials.restore(snapshot.tutorialFlags);
     ending.restore(snapshot.ending.choice);
     playtimeSeconds = snapshot.playtimeSeconds;
+    applyDayPhase(snapshot.dayPhase);
     readSteleIds = new Set(snapshot.readSteleIds);
     discoveredZoneIds = new Set(snapshot.discoveredZoneIds);
     worldBuilder.setCollectedShards(snapshot.collectedShardIds);
@@ -695,6 +748,15 @@ async function startGame(): Promise<() => void> {
               ? `#${scene.background.getHexString()}`
               : null,
           fogEnabled: scene.fog !== null,
+          fogHex:
+            scene.fog instanceof Fog
+              ? `#${scene.fog.color.getHexString()}`
+              : null,
+          skyZenithHex: currentMood.zenith,
+          skyHorizonHex: currentMood.horizon,
+          sunIntensity: currentMood.sunIntensity,
+          ambientIntensity: ambientLight.intensity,
+          dayPhase,
           skyEnabled: scene.getObjectByName('synthwave-sky') !== undefined,
         }),
         getSaveData: () =>
@@ -703,6 +765,10 @@ async function startGame(): Promise<() => void> {
         setLanguage: (language: 'zh-TW' | 'en') => {
           applySettings({ ...settings, language });
           menu.setSettings(settings);
+          persist();
+        },
+        setDayPhase: (phase: number) => {
+          applyDayPhase(phase);
           persist();
         },
         openMenu: (name: MenuName) => {
