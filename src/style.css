@@ -255,6 +255,44 @@ body {
   transform: translate(-50%, 0);
 }
 
+.opening-sequence {
+  position: fixed;
+  z-index: 30;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: #000;
+  color: #d8faff;
+  font-size: clamp(1.15rem, 3vw, 2rem);
+  letter-spacing: 0.22em;
+  text-shadow: 0 0 18px #00e5ff;
+}
+
+.opening-sequence.is-playing {
+  animation: opening-curtain 3.5s ease-in-out both;
+}
+
+.opening-sequence span {
+  opacity: 0;
+}
+
+.opening-sequence.is-playing span {
+  animation: opening-subtitle 2s ease-out 1.5s both;
+}
+
+.opening-sequence.is-reduced.is-playing {
+  animation-duration: 500ms;
+}
+
+.opening-sequence.is-reduced span {
+  opacity: 1;
+  animation: none;
+}
+
+.opening-sequence[hidden] {
+  display: none;
+}
+
 .stele-overlay {
   position: absolute;
   right: max(1rem, 8vw);
@@ -513,6 +551,34 @@ body {
   }
 }
 
+@keyframes opening-curtain {
+  0%,
+  42% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes opening-subtitle {
+  0% {
+    opacity: 0;
+    transform: translateY(0.35rem);
+  }
+
+  20%,
+  78% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  100% {
+    opacity: 0;
+  }
+}
+
 @media (max-width: 36rem) {
   .settings-grid > label {
     grid-template-columns: 1fr;
@@ -541,4 +607,8 @@ body {
   animation-duration: 0.01ms !important;
   animation-iteration-count: 1 !important;
   transition-duration: 0.01ms !important;
+}
+
+.reduced-motion .opening-sequence.is-reduced {
+  animation-duration: 500ms !important;
 }

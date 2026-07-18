@@ -34,6 +34,10 @@ import {
   type GameSettings,
   type SaveData,
 } from './systems/save/SaveSystem';
+import {
+  TutorialSystem,
+  type TutorialDefinition,
+} from './systems/tutorial/TutorialSystem';
 import { DevTuningPanel } from './ui/DevTuningPanel';
 import { GameplayOverlay } from './ui/GameplayOverlay';
 import { setLanguage, t } from './ui/i18n';
@@ -137,10 +141,14 @@ async function startGame(): Promise<() => void> {
       audio.play(completed ? 'puzzleComplete' : 'puzzleProgress'),
   });
   const character = new CharacterController(physicsWorld, scene, abilities);
+  const tutorials = new TutorialSystem();
   const input = new InputSystem(canvas, settings.bindings);
   const overlay = new GameplayOverlay();
   overlay.setSubtitleSize(settings.subtitleSize);
   const thirdPersonCamera = new ThirdPersonCamera(physicsWorld, character);
+  thirdPersonCamera.setAutoBehindEnabled(settings.autoCameraBehind);
+  character.setReducedMotion(settings.reducedMotion);
+  worldBuilder.setReducedMotion(settings.reducedMotion);
   const camera = thirdPersonCamera.camera;
   thirdPersonCamera.update(1 / 60);
 
@@ -151,6 +159,8 @@ async function startGame(): Promise<() => void> {
     : undefined;
 
   let sessionStarted = false;
+  let controlsEnabled = false;
+  let activeTutorial: TutorialDefinition | undefined;
   let readSteleIds = new Set<string>();
   let lastPuzzleSignature = JSON.stringify(puzzles.getAll());
   let playtimeSeconds = bootSave.playtimeSeconds;
@@ -167,6 +177,7 @@ async function startGame(): Promise<() => void> {
       puzzles: puzzles.getAll(),
       playerPosition: { x: position.x, y: position.y, z: position.z },
       settings: structuredClone(settings),
+      tutorialFlags: tutorials.getFlags(),
       ending: { choice: ending.getChoice() ?? null },
       playtimeSeconds,
     };
@@ -259,25 +270,41 @@ async function startGame(): Promise<() => void> {
 
   const loop = new GameLoop({
     update: (fixedDeltaSeconds) => {
-      thirdPersonCamera.applyPointerDelta(input.consumePointerDelta());
-      const move = thirdPersonCamera.getMovementDirection(
-        input.getMovementAxes(),
-      );
+      const pointerDelta = input.consumePointerDelta();
+      if (controlsEnabled) thirdPersonCamera.applyPointerDelta(pointerDelta);
+      const movementAxes = controlsEnabled
+        ? input.getMovementAxes()
+        : { x: 0, y: 0 };
+      const move = thirdPersonCamera.getMovementDirection(movementAxes);
+      const jumpPressed = controlsEnabled && input.wasActionPressed('jump');
+      const jumpReleased = controlsEnabled && input.wasActionReleased('jump');
+      const dashPressed = controlsEnabled && input.wasActionPressed('dash');
+      const interactPressed =
+        controlsEnabled && input.wasActionPressed('interact');
       const positionBeforeMove = character.getPosition();
       const locomotion = character.update(fixedDeltaSeconds, {
         move,
-        jumpPressed: input.wasActionPressed('jump'),
-        jumpHeld: input.isActionHeld('jump'),
-        jumpReleased: input.wasActionReleased('jump'),
-        dashPressed: input.wasActionPressed('dash'),
+        jumpPressed,
+        jumpHeld: controlsEnabled && input.isActionHeld('jump'),
+        jumpReleased,
+        dashPressed,
         inUpdraft: gameplayWorld.isInUpdraft(positionBeforeMove),
       });
       if (locomotion.jumped) audio.play('jump');
       if (locomotion.doubleJumped) audio.play('doubleJump');
       if (locomotion.dashStarted) audio.play('dash');
-      if (input.wasActionPressed('interact')) {
+      if (interactPressed) {
         character.triggerInteraction();
         tryInteraction();
+      }
+      if (
+        activeTutorial &&
+        ((activeTutorial.action === 'jump' && jumpPressed) ||
+          (activeTutorial.action === 'dash' && dashPressed) ||
+          (activeTutorial.action === 'interact' && interactPressed))
+      ) {
+        overlay.dismissTutorial(activeTutorial.id);
+        activeTutorial = undefined;
       }
       if (input.wasPressed('Backquote')) devPanel?.toggle();
       input.endFixedStep();
@@ -286,6 +313,17 @@ async function startGame(): Promise<() => void> {
       physicsWorld.step();
       character.syncVisual();
       const position = character.getPosition();
+      const landingSpeed = character.consumeLandingSpeed();
+      if (landingSpeed !== undefined) {
+        thirdPersonCamera.triggerLanding(landingSpeed);
+        particles.landingDust(position, landingSpeed);
+        audio.playLanding(landingSpeed);
+      }
+      audio.updateFootsteps(
+        character.getRunCyclePhase(),
+        character.getHorizontalSpeed(),
+        character.isGrounded(),
+      );
       if (sessionStarted) {
         playtimeSeconds = advancePlaytime(playtimeSeconds, fixedDeltaSeconds);
       }
@@ -296,7 +334,22 @@ async function startGame(): Promise<() => void> {
         lastPuzzleSignature = puzzleSignature;
         if (sessionStarted) persist();
       }
-      thirdPersonCamera.update(fixedDeltaSeconds);
+      if (controlsEnabled) {
+        const tutorial = tutorials.trigger({
+          position,
+          moving: character.getHorizontalSpeed() > 0.05,
+          abilities: new Set(abilities.getAll()),
+        });
+        if (tutorial) {
+          activeTutorial = tutorial;
+          overlay.showTutorial(tutorial);
+          persist();
+        }
+      }
+      thirdPersonCamera.update(fixedDeltaSeconds, {
+        horizontalVelocity: character.getHorizontalVelocity(),
+        sprinting: locomotion.dashStarted || locomotion.state.dashRemaining > 0,
+      });
       worldBuilder.update(fixedDeltaSeconds);
       particles.update(fixedDeltaSeconds);
       audio.update(fixedDeltaSeconds, position);
@@ -316,6 +369,9 @@ async function startGame(): Promise<() => void> {
     overlay.setSubtitleSize(settings.subtitleSize);
     audio.setVolume(settings.volume);
     particles.setReducedMotion(settings.reducedMotion);
+    character.setReducedMotion(settings.reducedMotion);
+    worldBuilder.setReducedMotion(settings.reducedMotion);
+    thirdPersonCamera.setAutoBehindEnabled(settings.autoCameraBehind);
     tuning.cameraSensitivity =
       DEFAULT_CAMERA_SENSITIVITY * settings.mouseSensitivity;
     applyReducedMotion(settings.reducedMotion);
@@ -323,9 +379,11 @@ async function startGame(): Promise<() => void> {
   };
 
   const restoreSnapshot = (snapshot: SaveData): void => {
+    activeTutorial = undefined;
     abilities.restore(snapshot.abilities);
     collectibles.restore(snapshot.collectedShardIds);
     puzzles.restore(snapshot.puzzles);
+    tutorials.restore(snapshot.tutorialFlags);
     ending.restore(snapshot.ending.choice);
     playtimeSeconds = snapshot.playtimeSeconds;
     readSteleIds = new Set(snapshot.readSteleIds);
@@ -343,17 +401,29 @@ async function startGame(): Promise<() => void> {
     lastPuzzleSignature = JSON.stringify(puzzles.getAll());
   };
 
-  const startSession = (snapshot: SaveData): void => {
+  const startSession = (snapshot: SaveData, showOpening = false): void => {
     restoreSnapshot(snapshot);
     sessionStarted = true;
     overlay.setActive(true);
     loop.setPaused(false);
+    if (showOpening) {
+      controlsEnabled = false;
+      canvas.dataset.controls = 'locked';
+      thirdPersonCamera.startOpening(settings.reducedMotion);
+      overlay.showOpening(settings.reducedMotion, () => {
+        controlsEnabled = true;
+        canvas.dataset.controls = 'ready';
+      });
+    } else {
+      controlsEnabled = true;
+      canvas.dataset.controls = 'ready';
+    }
   };
 
   const startNewGame = (): void => {
     clearSaveData();
     const freshSave = createDefaultSaveData();
-    startSession(freshSave);
+    startSession(freshSave, true);
     saveData(getSnapshot());
     menu.setSettings(settings);
   };
@@ -459,13 +529,22 @@ async function startGame(): Promise<() => void> {
           menu.setSettings(settings);
           persist();
         },
-        openMenu,
+        openMenu: (name: MenuName) => {
+          openMenu(name);
+          // 測試入口：若開場演出正在播，跳過並立即交還控制權。
+          if (name === 'none' && overlay.skipOpening()) {
+            thirdPersonCamera.startOpening(true);
+            controlsEnabled = true;
+            canvas.dataset.controls = 'ready';
+          }
+        },
       },
     });
   }
 
   loading.hidden = true;
   canvas.dataset.status = 'ready';
+  canvas.dataset.controls = 'locked';
   loop.start();
   loop.setPaused(true);
 

@@ -28,9 +28,18 @@ export interface Tuning {
   cameraHeight: number;
   cameraCollisionPadding: number;
   cameraPositionSmoothing: number;
+  followLagHorizontal: number;
+  followLagVertical: number;
+  autoBehindDelay: number;
+  autoBehindRate: number;
+  sprintFovBoost: number;
+  landingCamDip: number;
   cameraFovKickCoefficient: number;
   cameraShakeStrength: number;
   particleDensityMultiplier: number;
+  landingHardSpeedThreshold: number;
+  landingSquashDuration: number;
+  footstepBaseVolume: number;
   bloomStrength: number;
   bloomRadius: number;
   bloomThreshold: number;
@@ -80,9 +89,18 @@ export const tuning: Tuning = {
   cameraHeight: 0.85,
   cameraCollisionPadding: 0.18,
   cameraPositionSmoothing: 14,
+  followLagHorizontal: 11,
+  followLagVertical: 6,
+  autoBehindDelay: 2,
+  autoBehindRate: 1.8,
+  sprintFovBoost: 6,
+  landingCamDip: 0.35,
   cameraFovKickCoefficient: 1,
   cameraShakeStrength: 1,
   particleDensityMultiplier: 1,
+  landingHardSpeedThreshold: 10,
+  landingSquashDuration: 0.12,
+  footstepBaseVolume: 0.085,
   bloomStrength: 1.65,
   bloomRadius: 0.78,
   bloomThreshold: 0.55,
@@ -102,8 +120,12 @@ export const tuning: Tuning = {
 };
 
 export const DEFAULT_CAMERA_SENSITIVITY = tuning.cameraSensitivity;
+const FULL_SPRINT_FOV_BOOST = tuning.sprintFovBoost;
+const FULL_LANDING_CAM_DIP = tuning.landingCamDip;
 
 export function applyReducedMotion(enabled: boolean): void {
+  tuning.sprintFovBoost = enabled ? 0 : FULL_SPRINT_FOV_BOOST;
+  tuning.landingCamDip = enabled ? 0 : FULL_LANDING_CAM_DIP;
   tuning.cameraFovKickCoefficient = enabled ? 0 : 1;
   tuning.cameraShakeStrength = enabled ? 0 : 1;
   tuning.particleDensityMultiplier = enabled ? 0.5 : 1;

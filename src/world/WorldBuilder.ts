@@ -5,21 +5,23 @@ import {
   type World,
 } from '@dimforge/rapier3d-compat';
 import {
+  AdditiveBlending,
   BoxGeometry,
   BufferGeometry,
+  Color,
   CylinderGeometry,
   DynamicDrawUsage,
   Euler,
   Group,
   InstancedMesh,
   Line,
-  LineBasicMaterial,
   Mesh,
   MeshStandardMaterial,
   Object3D,
   OctahedronGeometry,
   PlaneGeometry,
   Quaternion,
+  ShaderMaterial,
   TorusGeometry,
   Vector3,
   type Material,
@@ -68,7 +70,9 @@ export class WorldBuilder {
   );
   private readonly collectedShardIds = new Set<string>();
   private shardMesh: InstancedMesh | undefined;
+  private guideMaterial: ShaderMaterial | undefined;
   private elapsedSeconds = 0;
+  private reducedMotion = false;
 
   public constructor(
     private readonly scene: Scene,
@@ -105,10 +109,21 @@ export class WorldBuilder {
     for (const id of ids) this.setShardCollected(id);
   }
 
+  public setReducedMotion(reducedMotion: boolean): void {
+    this.reducedMotion = reducedMotion;
+    if (this.guideMaterial) {
+      this.guideMaterial.uniforms.uMotion!.value = reducedMotion ? 0 : 1;
+    }
+  }
+
   public update(deltaSeconds: number): void {
     const shardMesh = this.shardMesh;
     if (!shardMesh) return;
     this.elapsedSeconds += deltaSeconds;
+    if (this.guideMaterial) {
+      this.guideMaterial.uniforms.uTime!.value = this.elapsedSeconds;
+      this.guideMaterial.uniforms.uMotion!.value = this.reducedMotion ? 0 : 1;
+    }
     const dummy = new Object3D();
     this.shardPositions.forEach((position, index) => {
       const bob = Math.sin(this.elapsedSeconds * 1.35 + index * 0.73) * 0.28;
@@ -484,8 +499,35 @@ export class WorldBuilder {
 
   private buildTutorialGuide(): void {
     const material = this.trackMaterial(
-      new LineBasicMaterial({
-        color: PALETTE.neonCyan,
+      new ShaderMaterial({
+        uniforms: {
+          uTime: { value: 0 },
+          uMotion: { value: 1 },
+          uColor: { value: new Color(PALETTE.neonCyan) },
+        },
+        vertexShader: `
+          varying float vDistance;
+          attribute float lineDistance;
+          void main() {
+            vDistance = lineDistance;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          }
+        `,
+        fragmentShader: `
+          uniform float uTime;
+          uniform float uMotion;
+          uniform vec3 uColor;
+          varying float vDistance;
+          void main() {
+            float phase = fract((vDistance - uTime * 24.0 * uMotion) / 28.0);
+            float pulse = uMotion > 0.5 ? smoothstep(0.72, 1.0, phase) : 1.0;
+            float brightness = mix(0.42, 1.0, pulse);
+            gl_FragColor = vec4(uColor * brightness, brightness);
+          }
+        `,
+        transparent: true,
+        blending: AdditiveBlending,
+        depthWrite: false,
         toneMapped: false,
       }),
     );
@@ -494,7 +536,9 @@ export class WorldBuilder {
       new Vector3(0, 0.08, -360),
     ]);
     const guide = new Line(geometry, material);
+    guide.computeLineDistances();
     guide.name = 'south-tutorial-neon-guide';
+    this.guideMaterial = material;
     this.root.add(guide);
   }
 

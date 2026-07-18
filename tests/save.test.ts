@@ -48,6 +48,8 @@ describe('save system', () => {
     data.readSteleIds = ['stele-plaza-01'];
     data.playerPosition = { x: 12, y: 4, z: -8 };
     data.settings.language = 'en';
+    data.settings.autoCameraBehind = false;
+    data.tutorialFlags.jumpGap = true;
     data.ending.choice = 'awaken';
     data.playtimeSeconds = advancePlaytime(data.playtimeSeconds, 123.5);
 
@@ -56,6 +58,29 @@ describe('save system', () => {
     expect(loadSaveData(storage)).toEqual(data);
     expect(loadSaveData(storage).version).toBe(SAVE_VERSION);
     expect(loadSaveData(storage).playtimeSeconds).toBe(123.5);
+    expect(loadSaveData(storage).settings.autoCameraBehind).toBe(false);
+    expect(loadSaveData(storage).tutorialFlags.jumpGap).toBe(true);
+  });
+
+  it('migrates v1 settings with auto camera enabled and fresh tutorials', () => {
+    const storage = new MemoryStorage();
+    const legacy = createDefaultSaveData() as unknown as Record<
+      string,
+      unknown
+    >;
+    legacy.version = 1;
+    delete legacy.tutorialFlags;
+    const legacySettings = legacy.settings as Record<string, unknown>;
+    delete legacySettings.autoCameraBehind;
+    storage.setItem(SAVE_STORAGE_KEY, JSON.stringify(legacy));
+
+    const migrated = loadSaveData(storage);
+    expect(migrated.settings.autoCameraBehind).toBe(true);
+    expect(migrated.tutorialFlags).toEqual({
+      jumpGap: false,
+      dashMove: false,
+      firstStele: false,
+    });
   });
 
   it('only advances playtime for positive elapsed time', () => {

@@ -11,5 +11,7 @@ describe('reduced motion tuning', () => {
     expect(tuning.cameraFovKickCoefficient).toBe(0);
     expect(tuning.cameraShakeStrength).toBe(0);
     expect(tuning.particleDensityMultiplier).toBe(0.5);
+    expect(tuning.sprintFovBoost).toBe(0);
+    expect(tuning.landingCamDip).toBe(0);
   });
 });

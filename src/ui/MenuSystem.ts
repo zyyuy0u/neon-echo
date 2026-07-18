@@ -1,7 +1,4 @@
-import {
-  INPUT_ACTIONS,
-  type InputAction,
-} from '../systems/input/bindings';
+import { INPUT_ACTIONS, type InputAction } from '../systems/input/bindings';
 import type { GameSettings } from '../systems/save/SaveSystem';
 import { onLanguageChange, t } from './i18n';
 
@@ -119,12 +116,7 @@ export class MenuSystem {
     const controlsButton = createButton(t('menu.controls'), () =>
       this.open('controls'),
     );
-    nav.append(
-      continueButton,
-      newGameButton,
-      settingsButton,
-      controlsButton,
-    );
+    nav.append(continueButton, newGameButton, settingsButton, controlsButton);
     const version = document.createElement('small');
     version.className = 'menu-version';
     version.textContent = t('menu.version');
@@ -202,6 +194,21 @@ export class MenuSystem {
     reducedHint.textContent = t('settings.reducedMotionHint');
     reducedLabel.append(reduced, reducedText, reducedHint);
 
+    const autoBehindLabel = document.createElement('label');
+    autoBehindLabel.className = 'toggle-setting';
+    const autoBehind = document.createElement('input');
+    autoBehind.type = 'checkbox';
+    autoBehind.dataset.setting = 'auto-camera-behind';
+    autoBehind.checked = this.settings.autoCameraBehind;
+    autoBehind.addEventListener('change', () =>
+      this.updateSettings({ autoCameraBehind: autoBehind.checked }),
+    );
+    const autoBehindText = document.createElement('span');
+    autoBehindText.textContent = t('settings.autoCameraBehind');
+    const autoBehindHint = document.createElement('small');
+    autoBehindHint.textContent = t('settings.autoCameraBehindHint');
+    autoBehindLabel.append(autoBehind, autoBehindText, autoBehindHint);
+
     const volume = this.createRange(
       'settings.volume',
       0,
@@ -217,7 +224,9 @@ export class MenuSystem {
     for (const size of ['small', 'medium', 'large'] as const) {
       const option = document.createElement('option');
       option.value = size;
-      option.textContent = t(`settings.subtitle${size[0]?.toUpperCase()}${size.slice(1)}`);
+      option.textContent = t(
+        `settings.subtitle${size[0]?.toUpperCase()}${size.slice(1)}`,
+      );
       subtitle.append(option);
     }
     subtitle.value = this.settings.subtitleSize;
@@ -255,12 +264,15 @@ export class MenuSystem {
     conflict.className = 'binding-conflict';
     conflict.setAttribute('role', 'alert');
 
-    const back = createButton(t('menu.back'), () => this.open(this.settingsOrigin));
+    const back = createButton(t('menu.back'), () =>
+      this.open(this.settingsOrigin),
+    );
     back.className = 'menu-back';
     form.append(
       sensitivity.label,
       languageLabel,
       reducedLabel,
+      autoBehindLabel,
       volume.label,
       subtitleLabel,
       bindingTitle,
@@ -336,10 +348,12 @@ export class MenuSystem {
       event.preventDefault();
       const conflict = INPUT_ACTIONS.find(
         (action) =>
-          action !== this.rebinding && this.settings.bindings[action] === event.code,
+          action !== this.rebinding &&
+          this.settings.bindings[action] === event.code,
       );
       if (conflict) {
-        const message = this.panel.querySelector<HTMLElement>('.binding-conflict');
+        const message =
+          this.panel.querySelector<HTMLElement>('.binding-conflict');
         if (message) {
           message.textContent = `${t('settings.keyConflict')} ${t(ACTION_LABELS[conflict])}`;
         }
@@ -378,7 +392,9 @@ export class MenuSystem {
       ),
     ];
     if (controls.length === 0) return;
-    const currentIndex = controls.indexOf(document.activeElement as HTMLElement);
+    const currentIndex = controls.indexOf(
+      document.activeElement as HTMLElement,
+    );
     const direction =
       event.key === 'ArrowUp' || (isTab && event.shiftKey) ? -1 : 1;
     const nextIndex =

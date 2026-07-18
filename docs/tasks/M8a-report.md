@@ -1,0 +1,26 @@
+## REPORT
+
+- 結論: PASS — M8a 的相機手感、落地/腳步回饋、首次開場、一次性教學與南區導引線已完成，所有允許執行的驗收指令全數通過。
+- 產出:
+  - `/Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/core/tuning.ts:31-42,92-103,123-131`
+  - `/Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/systems/camera/ThirdPersonCamera.ts:8-30,59-97,113-245`
+  - `/Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/systems/character/CharacterController.ts:102-155`
+  - `/Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/systems/character/CharacterAvatar.ts:178-215,340-361`
+  - `/Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/render/particles.ts:24-72,160-179,315-336,426-446`
+  - `/Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/systems/audio/AudioSystem.ts:120-146,277-329`
+  - `/Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/systems/tutorial/TutorialSystem.ts:1-105`
+  - `/Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/systems/save/SaveSystem.ts:12-45,55-95,126-198`
+  - `/Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/ui/GameplayOverlay.ts:57-93,150-178`
+  - `/Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/ui/MenuSystem.ts:197-210,275`
+  - `/Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/world/WorldBuilder.ts:73-125,500-542`
+  - `/Users/zhengyuyou/Desktop/專案、系統/Site-Project/src/main.ts:143-182,271-421`
+  - `/Users/zhengyuyou/Desktop/專案、系統/Site-Project/tests/camera.test.ts:1-14`; `/Users/zhengyuyou/Desktop/專案、系統/Site-Project/tests/audio.test.ts:75-88`; `/Users/zhengyuyou/Desktop/專案、系統/Site-Project/tests/tutorial.test.ts:35-81`; `/Users/zhengyuyou/Desktop/專案、系統/Site-Project/tests/save.test.ts:42-84`; `/Users/zhengyuyou/Desktop/專案、系統/Site-Project/tests/tuning.test.ts:5-17`
+  - `/Users/zhengyuyou/Desktop/專案、系統/Site-Project/e2e/feel.spec.ts:1-94`
+- 驗證證據:
+  - `npm run lint` → `eslint src tests e2e --max-warnings 0` → exit 0。
+  - `npm run typecheck` → `tsc --noEmit` → exit 0。
+  - `npm test` → `Test Files 16 passed (16)`；`Tests 59 passed (59)` → exit 0。
+  - `npm run build` → `✓ 435 modules transformed`；`✓ built in 100ms` → exit 0。
+  - `rg -n "followLagHorizontal|followLagVertical|autoBehindDelay|autoBehindRate|sprintFovBoost|landingCamDip|footstepBaseVolume" src/core/tuning.ts` → 七個必要鍵均命中；reduced-motion 派生值於 127-128 行置 0。
+- 未解決事項與風險:
+  - 依 REDLINES 未執行 `npm run e2e`；新增 `e2e/feel.spec.ts` 及既有六條 e2e（含 art/world 預算斷言）待主控執行。

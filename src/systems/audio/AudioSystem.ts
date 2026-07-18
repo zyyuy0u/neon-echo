@@ -1,3 +1,5 @@
+import { tuning } from '../../core/tuning';
+
 export const AUDIO_EVENTS = [
   'jump',
   'doubleJump',
@@ -116,6 +118,32 @@ const ZONE_FILTERS: Readonly<Record<MusicZone, number>> = {
 
 const CROSSFADE_SECONDS = 2.2;
 const PAD_SECONDS = 4;
+const FOOTSTEP_PHASES = [0.16, 0.66] as const;
+
+export type LandingSoundTier = 'soft' | 'hard';
+
+export function getLandingSoundTier(
+  verticalSpeed: number,
+  hardThreshold = tuning.landingHardSpeedThreshold,
+): LandingSoundTier {
+  return Math.abs(verticalSpeed) >= hardThreshold ? 'hard' : 'soft';
+}
+
+export function getFootstepPhaseCrossings(
+  previousPhase: number | undefined,
+  currentPhase: number | undefined,
+): number {
+  if (previousPhase === undefined || currentPhase === undefined) return 0;
+  const previous = ((previousPhase % 1) + 1) % 1;
+  const current = ((currentPhase % 1) + 1) % 1;
+  if (current >= previous) {
+    return FOOTSTEP_PHASES.filter(
+      (phase) => phase > previous && phase <= current,
+    ).length;
+  }
+  return FOOTSTEP_PHASES.filter((phase) => phase > previous || phase <= current)
+    .length;
+}
 
 function defaultContextFactory(): AudioContext {
   return new AudioContext();
@@ -149,6 +177,8 @@ export class AudioSystem {
   private nextChordTime = 0;
   private chordIndex = 0;
   private ending: 'awaken' | 'rest' | undefined;
+  private previousRunPhase: number | undefined;
+  private footstepIndex = 0;
   private removeGestureListeners: (() => void) | undefined;
 
   public constructor(
@@ -242,6 +272,61 @@ export class AudioSystem {
       this.context.currentTime,
       this.sfxBus,
     );
+  }
+
+  public playLanding(verticalSpeed: number): void {
+    if (!this.context || !this.sfxBus || this.volume === 0) return;
+    const tier = getLandingSoundTier(verticalSpeed);
+    this.scheduleTone(
+      tier === 'hard'
+        ? {
+            frequency: 88,
+            endFrequency: 42,
+            duration: 0.19,
+            gain: 0.13,
+            wave: 'sawtooth',
+          }
+        : {
+            frequency: 116,
+            endFrequency: 72,
+            duration: 0.11,
+            gain: 0.075,
+            wave: 'triangle',
+          },
+      this.context.currentTime,
+      this.sfxBus,
+    );
+  }
+
+  public updateFootsteps(
+    runPhase: number | undefined,
+    horizontalSpeed: number,
+    grounded: boolean,
+  ): void {
+    const activePhase =
+      grounded && horizontalSpeed > 0.05 ? runPhase : undefined;
+    const crossings = getFootstepPhaseCrossings(
+      this.previousRunPhase,
+      activePhase,
+    );
+    this.previousRunPhase = activePhase;
+    if (!this.context || !this.sfxBus || this.volume === 0) return;
+    for (let index = 0; index < crossings; index += 1) {
+      const alternate = this.footstepIndex % 2;
+      const speedVolume = Math.min(1, horizontalSpeed / tuning.runSpeed);
+      this.scheduleTone(
+        {
+          frequency: alternate === 0 ? 104 : 127,
+          endFrequency: alternate === 0 ? 58 : 69,
+          duration: 0.075,
+          gain: tuning.footstepBaseVolume * speedVolume,
+          wave: alternate === 0 ? 'triangle' : 'square',
+        },
+        this.context.currentTime,
+        this.sfxBus,
+      );
+      this.footstepIndex += 1;
+    }
   }
 
   public update(

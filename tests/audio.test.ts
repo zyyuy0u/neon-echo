@@ -4,6 +4,8 @@ import {
   AUDIO_EVENT_HANDLERS,
   AUDIO_EVENTS,
   AudioSystem,
+  getFootstepPhaseCrossings,
+  getLandingSoundTier,
 } from '../src/systems/audio/AudioSystem';
 
 interface FakeAudioContextResult {
@@ -70,6 +72,20 @@ function createFakeContext(): FakeAudioContextResult {
 }
 
 describe('procedural audio system', () => {
+  it('selects landing sound tiers at the tuning threshold', () => {
+    expect(getLandingSoundTier(9.9, 10)).toBe('soft');
+    expect(getLandingSoundTier(10, 10)).toBe('hard');
+    expect(getLandingSoundTier(-14, 10)).toBe('hard');
+  });
+
+  it('detects alternating Run clip foot phases including loop wrap', () => {
+    expect(getFootstepPhaseCrossings(undefined, 0.2)).toBe(0);
+    expect(getFootstepPhaseCrossings(0.1, 0.2)).toBe(1);
+    expect(getFootstepPhaseCrossings(0.2, 0.7)).toBe(1);
+    expect(getFootstepPhaseCrossings(0.9, 0.18)).toBe(1);
+    expect(getFootstepPhaseCrossings(0.2, undefined)).toBe(0);
+  });
+
   it('has a handler for every required gameplay event', () => {
     expect(Object.keys(AUDIO_EVENT_HANDLERS).sort()).toEqual(
       [...AUDIO_EVENTS].sort(),

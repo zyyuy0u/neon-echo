@@ -21,12 +21,14 @@ const DUST_PER_ZONE = 24;
 const BURST_CAPACITY = 48;
 const HALO_CAPACITY = 6;
 const UPDRAFT_STREAMS = 18;
+const LANDING_DUST_CAPACITY = 24;
 
 export interface ParticleDensity {
   dust: number;
   pickupBurst: number;
   unlockHalo: number;
   updraftStreams: number;
+  landingDust: number;
 }
 
 export function getParticleDensity(reducedMotion: boolean): ParticleDensity {
@@ -36,6 +38,7 @@ export function getParticleDensity(reducedMotion: boolean): ParticleDensity {
     pickupBurst: 24 * scale,
     unlockHalo: 6 * scale,
     updraftStreams: UPDRAFT_STREAMS * scale,
+    landingDust: LANDING_DUST_CAPACITY * scale,
   };
 }
 
@@ -52,11 +55,22 @@ interface HaloParticle {
   maximumLife: number;
 }
 
+interface LandingDustParticle {
+  position: Vector3;
+  velocity: Vector3;
+  life: number;
+  maximumLife: number;
+}
+
 export interface ParticleSystem {
   update: (deltaSeconds: number) => void;
   setReducedMotion: (reducedMotion: boolean) => void;
   burstShard: (position: Readonly<{ x: number; y: number; z: number }>) => void;
   unlockHalo: (position: Readonly<{ x: number; y: number; z: number }>) => void;
+  landingDust: (
+    position: Readonly<{ x: number; y: number; z: number }>,
+    speed: number,
+  ) => void;
   triggerEnding: (choice: EndingChoice) => void;
   dispose: () => void;
 }
@@ -142,6 +156,27 @@ export function createParticleSystem(
   halos.frustumCulled = false;
   root.add(halos);
   const haloParticles: HaloParticle[] = [];
+
+  const landingDustGeometry = new OctahedronGeometry(0.11, 0);
+  const landingDustMaterial = new MeshBasicMaterial({
+    color: PALETTE.warningYellow,
+    transparent: true,
+    opacity: 0.48,
+    blending: AdditiveBlending,
+    depthWrite: false,
+    toneMapped: false,
+  });
+  materials.add(landingDustMaterial);
+  const landingDust = new InstancedMesh(
+    landingDustGeometry,
+    landingDustMaterial,
+    LANDING_DUST_CAPACITY,
+  );
+  landingDust.name = 'landing-dust-ring';
+  landingDust.instanceMatrix.setUsage(DynamicDrawUsage);
+  landingDust.frustumCulled = false;
+  root.add(landingDust);
+  const landingDustParticles: LandingDustParticle[] = [];
 
   const streamGeometry = new CylinderGeometry(0.045, 0.045, 3.5, 5);
   const streamMaterial = new MeshBasicMaterial({
@@ -277,6 +312,30 @@ export function createParticleSystem(
     halos.instanceMatrix.needsUpdate = true;
   };
 
+  const updateLandingDust = (deltaSeconds: number): void => {
+    for (let index = landingDustParticles.length - 1; index >= 0; index -= 1) {
+      const particle = landingDustParticles[index];
+      if (!particle) continue;
+      particle.life -= deltaSeconds;
+      if (particle.life <= 0) {
+        landingDustParticles.splice(index, 1);
+        continue;
+      }
+      particle.position.addScaledVector(particle.velocity, deltaSeconds);
+      particle.velocity.multiplyScalar(Math.max(0, 1 - deltaSeconds * 3.2));
+    }
+    landingDust.count = landingDustParticles.length;
+    landingDustParticles.forEach((particle, index) => {
+      const life = particle.life / particle.maximumLife;
+      dummy.position.copy(particle.position);
+      dummy.rotation.set(0, elapsedSeconds * 1.8 + index, 0);
+      dummy.scale.setScalar(Math.max(0.01, life));
+      dummy.updateMatrix();
+      landingDust.setMatrixAt(index, dummy.matrix);
+    });
+    landingDust.instanceMatrix.needsUpdate = true;
+  };
+
   const updateEndingLights = (deltaSeconds: number): void => {
     if (endingChoice) endingElapsed += deltaSeconds;
     lightPositions.forEach((position, index) => {
@@ -306,6 +365,7 @@ export function createParticleSystem(
   updateStreams();
   bursts.count = 0;
   halos.count = 0;
+  landingDust.count = 0;
   updateEndingLights(0);
 
   return {
@@ -315,6 +375,7 @@ export function createParticleSystem(
       updateStreams();
       updateBursts(deltaSeconds);
       updateHalos(deltaSeconds);
+      updateLandingDust(deltaSeconds);
       updateEndingLights(deltaSeconds);
     },
     setReducedMotion: (nextReducedMotion) => {
@@ -324,6 +385,9 @@ export function createParticleSystem(
       }
       if (haloParticles.length > density.unlockHalo) {
         haloParticles.length = density.unlockHalo;
+      }
+      if (landingDustParticles.length > density.landingDust) {
+        landingDustParticles.length = density.landingDust;
       }
     },
     burstShard: (position) => {
@@ -359,6 +423,23 @@ export function createParticleSystem(
         haloParticles.splice(0, haloParticles.length - density.unlockHalo);
       }
     },
+    landingDust: (position, speed) => {
+      landingDustParticles.length = 0;
+      const force = Math.min(6, 2.6 + speed * 0.2);
+      for (let index = 0; index < density.landingDust; index += 1) {
+        const angle = (index / density.landingDust) * Math.PI * 2;
+        landingDustParticles.push({
+          position: new Vector3(position.x, position.y - 0.9, position.z),
+          velocity: new Vector3(
+            Math.cos(angle) * force,
+            0.25 + (index % 3) * 0.08,
+            Math.sin(angle) * force,
+          ),
+          life: 0.46,
+          maximumLife: 0.46,
+        });
+      }
+    },
     triggerEnding: (choice) => {
       endingChoice = choice;
       endingElapsed = 0;
@@ -371,6 +452,7 @@ export function createParticleSystem(
       dustGeometry.dispose();
       burstGeometry.dispose();
       haloGeometry.dispose();
+      landingDustGeometry.dispose();
       streamGeometry.dispose();
       endingLightGeometry.dispose();
       for (const material of materials) material.dispose();

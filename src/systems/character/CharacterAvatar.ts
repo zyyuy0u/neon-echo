@@ -125,6 +125,8 @@ export class CharacterAvatar {
   private interactionRemaining = 0;
   private locomotionState: CharacterAnimationState = 'idle';
   private horizontalSpeed = 0;
+  private reducedMotion = false;
+  private landingElapsed: number | undefined;
 
   public constructor() {
     this.object.name = 'character-avatar';
@@ -173,6 +175,7 @@ export class CharacterAvatar {
     const activeState = this.interactionRequested ? 'interact' : state;
     this.applyPose(activeState);
     this.mixer?.update(deltaSeconds);
+    this.updateLandingScale(deltaSeconds);
 
     if (this.interactionRequested && this.interactionRemaining > 0) {
       this.interactionRemaining -= deltaSeconds;
@@ -188,6 +191,26 @@ export class CharacterAvatar {
       action.reset();
       if (this.currentAction === action) action.play();
     }
+  }
+
+  public setReducedMotion(reducedMotion: boolean): void {
+    this.reducedMotion = reducedMotion;
+    if (reducedMotion) {
+      this.landingElapsed = undefined;
+      this.facing.scale.setScalar(1);
+    }
+  }
+
+  public triggerLanding(): void {
+    if (!this.reducedMotion) this.landingElapsed = 0;
+  }
+
+  public getRunCyclePhase(): number | undefined {
+    if (this.locomotionState !== 'run') return undefined;
+    const runAction = this.actions.get(getCharacterPose('run').clip);
+    const duration = runAction?.getClip().duration ?? 0;
+    if (!runAction || duration <= Number.EPSILON) return undefined;
+    return MathUtils.euclideanModulo(runAction.time / duration, 1);
   }
 
   public getInfo(): CharacterAvatarInfo {
@@ -312,5 +335,27 @@ export class CharacterAvatar {
         ? MathUtils.clamp(this.horizontalSpeed / tuning.runSpeed, 0.8, 1.25)
         : 1,
     );
+  }
+
+  private updateLandingScale(deltaSeconds: number): void {
+    if (this.landingElapsed === undefined) return;
+    this.landingElapsed += deltaSeconds;
+    const progress = Math.min(
+      1,
+      this.landingElapsed / tuning.landingSquashDuration,
+    );
+    const deformation =
+      progress < 0.5
+        ? Math.sin((progress / 0.5) * Math.PI)
+        : -0.42 * Math.sin(((progress - 0.5) / 0.5) * Math.PI);
+    this.facing.scale.set(
+      1 + deformation * 0.1,
+      1 - deformation * 0.22,
+      1 + deformation * 0.1,
+    );
+    if (progress === 1) {
+      this.landingElapsed = undefined;
+      this.facing.scale.setScalar(1);
+    }
   }
 }

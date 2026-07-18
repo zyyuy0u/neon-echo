@@ -1,6 +1,10 @@
 import type { SteleContent } from '../content/steles';
 import type { EndingChoice } from '../systems/ending/EndingState';
 import type { SubtitleSize } from '../systems/save/SaveSystem';
+import type {
+  TutorialDefinition,
+  TutorialId,
+} from '../systems/tutorial/TutorialSystem';
 import type { Ability } from '../world/map/types';
 import { getLanguage, onLanguageChange, t } from './i18n';
 
@@ -55,11 +59,15 @@ export class GameplayOverlay {
   private readonly shardCounter = document.createElement('div');
   private readonly shardValue = document.createElement('strong');
   private readonly message = document.createElement('div');
+  private readonly opening = document.createElement('div');
+  private readonly openingText = document.createElement('span');
   private readonly stele = document.createElement('section');
   private readonly ending = document.createElement('section');
   private readonly unlocked = new Set<Ability>();
   private shardCount = 0;
   private hideTimer: number | undefined;
+  private messageTimer: number | undefined;
+  private openingTimer: number | undefined;
   private currentStele: SteleContent | undefined;
   private subtitleSize: SubtitleSize = 'medium';
   private readonly unsubscribeLanguage: () => void;
@@ -78,8 +86,18 @@ export class GameplayOverlay {
     this.ending.className = 'ending-overlay';
     this.stele.hidden = true;
     this.ending.hidden = true;
+    this.opening.className = 'opening-sequence';
+    this.opening.hidden = true;
+    this.opening.setAttribute('role', 'status');
+    this.opening.append(this.openingText);
     this.hud.append(this.abilityList, this.shardCounter);
-    this.root.append(this.hud, this.message, this.stele, this.ending);
+    this.root.append(
+      this.hud,
+      this.message,
+      this.stele,
+      this.ending,
+      this.opening,
+    );
     document.body.append(this.root);
     this.renderHud();
     this.unsubscribeLanguage = onLanguageChange(() => {
@@ -122,10 +140,50 @@ export class GameplayOverlay {
   public showUnlock(ability: Ability): void {
     this.unlocked.add(ability);
     this.renderHud(ability);
-    this.message.textContent = `${t('overlay.unlock')} · ${t(ABILITY_KEYS[ability][0])}`;
-    this.message.classList.add('is-visible');
+    this.showMessage(
+      `${t('overlay.unlock')} · ${t(ABILITY_KEYS[ability][0])}`,
+      2400,
+    );
     this.showHudEvent();
-    window.setTimeout(() => this.message.classList.remove('is-visible'), 2400);
+  }
+
+  public showTutorial(definition: TutorialDefinition): void {
+    this.showMessage(t(definition.messageKey), 4000);
+    this.message.dataset.tutorial = definition.id;
+  }
+
+  public dismissTutorial(id: TutorialId): void {
+    if (this.message.dataset.tutorial !== id) return;
+    window.clearTimeout(this.messageTimer);
+    this.message.classList.remove('is-visible');
+    delete this.message.dataset.tutorial;
+  }
+
+  public showOpening(reducedMotion: boolean, onComplete: () => void): void {
+    window.clearTimeout(this.openingTimer);
+    this.openingText.textContent = t('opening.wake');
+    this.opening.hidden = false;
+    this.opening.classList.toggle('is-reduced', reducedMotion);
+    this.opening.classList.remove('is-playing');
+    void this.opening.offsetWidth;
+    this.opening.classList.add('is-playing');
+    this.openingTimer = window.setTimeout(
+      () => {
+        this.opening.hidden = true;
+        this.opening.classList.remove('is-playing');
+        onComplete();
+      },
+      reducedMotion ? 500 : 3500,
+    );
+  }
+
+  /** 供 dev/e2e 測試入口跳過開場演出；回傳原本是否正在播放。 */
+  public skipOpening(): boolean {
+    if (this.opening.hidden) return false;
+    window.clearTimeout(this.openingTimer);
+    this.opening.hidden = true;
+    this.opening.classList.remove('is-playing');
+    return true;
   }
 
   public showStele(content: SteleContent): void {
@@ -197,6 +255,8 @@ export class GameplayOverlay {
 
   public dispose(): void {
     window.clearTimeout(this.hideTimer);
+    window.clearTimeout(this.messageTimer);
+    window.clearTimeout(this.openingTimer);
     this.unsubscribeLanguage();
     this.root.remove();
   }
@@ -238,5 +298,16 @@ export class GameplayOverlay {
       () => this.hud.classList.add('is-idle'),
       4000,
     );
+  }
+
+  private showMessage(text: string, duration: number): void {
+    window.clearTimeout(this.messageTimer);
+    delete this.message.dataset.tutorial;
+    this.message.textContent = text;
+    this.message.classList.add('is-visible');
+    this.messageTimer = window.setTimeout(() => {
+      this.message.classList.remove('is-visible');
+      delete this.message.dataset.tutorial;
+    }, duration);
   }
 }

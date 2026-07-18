@@ -11,7 +11,8 @@ export const en = {
   'menu.resume': 'Resume',
   'menu.mainMenu': 'Main Menu',
   'menu.overwriteTitle': 'Overwrite existing progress?',
-  'menu.overwriteBody': 'A new game clears the current save. This cannot be undone.',
+  'menu.overwriteBody':
+    'A new game clears the current save. This cannot be undone.',
   'menu.confirm': 'Confirm',
   'menu.cancel': 'Cancel',
   'menu.back': 'Back',
@@ -21,7 +22,11 @@ export const en = {
   'settings.languageZh': 'Traditional Chinese',
   'settings.languageEn': 'English',
   'settings.reducedMotion': 'Reduce motion',
-  'settings.reducedMotionHint': 'Disables FOV kick and camera shake, and halves particle density.',
+  'settings.reducedMotionHint':
+    'Disables FOV kick and camera shake, and halves particle density.',
+  'settings.autoCameraBehind': 'Auto camera behind',
+  'settings.autoCameraBehindHint':
+    'Slowly returns the camera behind the character while moving without camera input.',
   'settings.volume': 'Volume',
   'settings.subtitleSize': 'Stele text size',
   'settings.subtitleSmall': 'Small',
@@ -38,9 +43,12 @@ export const en = {
   'settings.dash': 'Dash',
   'settings.interact': 'Interact',
   'controls.title': 'Controls',
-  'controls.movement': 'Use the movement keys to move and the jump key to leap.',
-  'controls.actions': 'Dash across gaps; use Interact to read steles and activate altars.',
-  'controls.pause': 'Press ESC to pause. Every action can be remapped in Settings.',
+  'controls.movement':
+    'Use the movement keys to move and the jump key to leap.',
+  'controls.actions':
+    'Dash across gaps; use Interact to read steles and activate altars.',
+  'controls.pause':
+    'Press ESC to pause. Every action can be remapped in Settings.',
   'hud.shards': 'Echo shards',
   'hud.abilities': 'Abilities',
   'ability.dash': 'Dash',
@@ -50,23 +58,36 @@ export const en = {
   'ability.doubleJumpShort': 'J',
   'ability.glideShort': 'G',
   'overlay.unlock': 'Ability Unlocked',
+  'opening.wake': 'Echo Walker, awaken.',
+  'tutorial.jump': 'Space Jump',
+  'tutorial.dash': 'Shift Dash',
+  'tutorial.interact': 'E Investigate',
   'stele.title': 'Memory Stele',
   'stele.close': 'Press Interact to close',
   'ending.choiceTitle': 'Choose the echoes’ dawn',
-  'ending.choicePrompt': 'AURORA leaves the final choice to the only person awake.',
+  'ending.choicePrompt':
+    'AURORA leaves the final choice to the only person awake.',
   'ending.awakenAction': 'Awaken the City',
   'ending.restAction': 'Let the Echoes Rest',
   'ending.awakenTitle': 'CITY AWAKENED',
-  'ending.awakenLine1': 'You reconnect every echo to streets that still seem to breathe.',
-  'ending.awakenLine2': 'Signs light first, followed by voices and the morning tram.',
-  'ending.awakenLine3': 'No one forgets the storm, and no one is forced to forgive.',
-  'ending.awakenLine4': 'The city wakes with its scars, and you become its first witness.',
+  'ending.awakenLine1':
+    'You reconnect every echo to streets that still seem to breathe.',
+  'ending.awakenLine2':
+    'Signs light first, followed by voices and the morning tram.',
+  'ending.awakenLine3':
+    'No one forgets the storm, and no one is forced to forgive.',
+  'ending.awakenLine4':
+    'The city wakes with its scars, and you become its first witness.',
   'ending.restTitle': 'ECHOES AT REST',
-  'ending.restLine1': 'You release the archive into a soft light above the city.',
+  'ending.restLine1':
+    'You release the archive into a soft light above the city.',
   'ending.restLine2': 'The last goodbye holds no fear, only permission to end.',
-  'ending.restLine3': 'AURORA closes the core and stops calculating the right answer.',
-  'ending.restLine4': 'The empty city remains as you carry every name toward dawn.',
-  'ending.stats': 'Stats: Echo shards {shards} / 40 · Memory steles {steles} / 12 · Playtime {playtime}',
+  'ending.restLine3':
+    'AURORA closes the core and stops calculating the right answer.',
+  'ending.restLine4':
+    'The empty city remains as you carry every name toward dawn.',
+  'ending.stats':
+    'Stats: Echo shards {shards} / 40 · Memory steles {steles} / 12 · Playtime {playtime}',
   'ending.continue': 'Continue Exploring',
   'loading.initializing': 'INITIALIZING ECHO…',
   'game.canvasLabel': 'NEON ECHO game view',

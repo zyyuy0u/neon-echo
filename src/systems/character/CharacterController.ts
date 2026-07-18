@@ -38,6 +38,7 @@ export class CharacterController {
   private readonly avatar = new CharacterAvatar();
   private locomotion: LocomotionState = createLocomotionState();
   private grounded = false;
+  private landingSpeed: number | undefined;
 
   public constructor(
     private readonly world: World,
@@ -76,6 +77,7 @@ export class CharacterController {
   }
 
   public update(deltaSeconds: number, input: CharacterInput): LocomotionResult {
+    const wasGrounded = this.grounded;
     const result = stepLocomotion(
       this.locomotion,
       {
@@ -102,6 +104,10 @@ export class CharacterController {
     });
 
     this.grounded = this.controller.computedGrounded();
+    if (!wasGrounded && this.grounded && this.locomotion.velocity.y < -2) {
+      this.landingSpeed = Math.abs(this.locomotion.velocity.y);
+      this.avatar.triggerLanding();
+    }
     if (Math.abs(movement.y - desired.y) > tuning.characterControllerOffset) {
       this.locomotion.velocity.y = 0;
     }
@@ -127,6 +133,28 @@ export class CharacterController {
     return this.grounded;
   }
 
+  public getHorizontalVelocity(): Readonly<{ x: number; z: number }> {
+    return this.locomotion.velocity;
+  }
+
+  public getHorizontalSpeed(): number {
+    return Math.hypot(this.locomotion.velocity.x, this.locomotion.velocity.z);
+  }
+
+  public getRunCyclePhase(): number | undefined {
+    return this.avatar.getRunCyclePhase();
+  }
+
+  public consumeLandingSpeed(): number | undefined {
+    const speed = this.landingSpeed;
+    this.landingSpeed = undefined;
+    return speed;
+  }
+
+  public setReducedMotion(reducedMotion: boolean): void {
+    this.avatar.setReducedMotion(reducedMotion);
+  }
+
   public triggerInteraction(): void {
     this.avatar.triggerInteraction();
   }
@@ -141,6 +169,7 @@ export class CharacterController {
     this.body.setNextKinematicTranslation(position);
     this.locomotion = createLocomotionState();
     this.grounded = false;
+    this.landingSpeed = undefined;
     this.syncVisual();
   }
 

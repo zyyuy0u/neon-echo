@@ -7,8 +7,13 @@ import {
 import type { EndingChoice } from '../ending/EndingState';
 import type { PuzzleId, PuzzleSnapshot } from '../puzzles/PuzzleState';
 import type { Language } from '../../ui/i18n';
+import {
+  createDefaultTutorialFlags,
+  TUTORIAL_IDS,
+  type TutorialFlags,
+} from '../tutorial/TutorialSystem';
 
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
 export const SAVE_STORAGE_KEY = 'neon-echo-save';
 
 export type SubtitleSize = 'small' | 'medium' | 'large';
@@ -17,6 +22,7 @@ export interface GameSettings {
   language: Language;
   mouseSensitivity: number;
   reducedMotion: boolean;
+  autoCameraBehind: boolean;
   bindings: KeyBindings;
   volume: number;
   subtitleSize: SubtitleSize;
@@ -36,6 +42,7 @@ export interface SaveData {
   puzzles: Record<PuzzleId, PuzzleSnapshot>;
   playerPosition: SavedPosition;
   settings: GameSettings;
+  tutorialFlags: TutorialFlags;
   ending: { choice: EndingChoice | null };
   playtimeSeconds: number;
 }
@@ -52,6 +59,7 @@ export function createDefaultSettings(): GameSettings {
     language: 'zh-TW',
     mouseSensitivity: 1,
     reducedMotion: false,
+    autoCameraBehind: true,
     bindings: { ...DEFAULT_BINDINGS },
     volume: 0.8,
     subtitleSize: 'medium',
@@ -83,6 +91,7 @@ export function createDefaultSaveData(): SaveData {
     },
     playerPosition: { x: 0, y: 1.2, z: 0 },
     settings: createDefaultSettings(),
+    tutorialFlags: createDefaultTutorialFlags(),
     ending: { choice: null },
     playtimeSeconds: 0,
   };
@@ -126,6 +135,7 @@ function isSaveData(value: unknown): value is SaveData {
     (settings.language !== 'zh-TW' && settings.language !== 'en') ||
     !isFiniteNumber(settings.mouseSensitivity) ||
     typeof settings.reducedMotion !== 'boolean' ||
+    typeof settings.autoCameraBehind !== 'boolean' ||
     !isFiniteNumber(settings.volume) ||
     !['small', 'medium', 'large'].includes(settings.subtitleSize as string) ||
     !INPUT_ACTIONS.every((action) => typeof bindings[action] === 'string')
@@ -147,6 +157,13 @@ function isSaveData(value: unknown): value is SaveData {
   ) {
     return false;
   }
+  if (!isObject(value.tutorialFlags)) {
+    return false;
+  }
+  const tutorialFlags = value.tutorialFlags;
+  if (!TUTORIAL_IDS.every((id) => typeof tutorialFlags[id] === 'boolean')) {
+    return false;
+  }
   return (
     isFiniteNumber(value.playtimeSeconds) &&
     value.playtimeSeconds >= 0 &&
@@ -159,9 +176,23 @@ function isSaveData(value: unknown): value is SaveData {
 
 /** Migration entry point. Add prior-version migrations here as schemas evolve. */
 export function migrateSaveData(value: unknown): SaveData | undefined {
-  if (!isObject(value) || value.version !== SAVE_VERSION) return undefined;
+  if (
+    !isObject(value) ||
+    (value.version !== 1 && value.version !== SAVE_VERSION)
+  ) {
+    return undefined;
+  }
+  const settings = isObject(value.settings)
+    ? {
+        ...value.settings,
+        autoCameraBehind: value.settings.autoCameraBehind ?? true,
+      }
+    : value.settings;
   const candidate = {
     ...value,
+    version: SAVE_VERSION,
+    settings,
+    tutorialFlags: value.tutorialFlags ?? createDefaultTutorialFlags(),
     playtimeSeconds: value.playtimeSeconds ?? 0,
   };
   return isSaveData(candidate) ? structuredClone(candidate) : undefined;
